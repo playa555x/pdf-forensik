@@ -4,9 +4,15 @@ Startet FastAPI + uvicorn und öffnet automatisch den Browser.
 """
 import webbrowser
 import threading
+import mimetypes
 from pathlib import Path
 
 import uvicorn
+
+# MIME-Types explizit registrieren (wichtig für Linux/Docker auf Render)
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("image/svg+xml", ".svg")
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
