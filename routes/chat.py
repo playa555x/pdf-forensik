@@ -18,10 +18,7 @@ from database.db import get_analysis, get_ai_review
 router = APIRouter()
 
 FEATHERLESS_API_URL = "https://api.featherless.ai/v1/chat/completions"
-FEATHERLESS_API_KEY = os.environ.get(
-    "FEATHERLESS_API_KEY",
-    "rc_40c0f75a22cd80906e5192e5535d211839e7fe12679a4eacd63adaed90503b57",
-)
+FEATHERLESS_API_KEY = os.environ.get("FEATHERLESS_API_KEY", "")
 FEATHERLESS_MODEL = "deepseek-ai/DeepSeek-V3-0324"
 
 _SYSTEM_BASE = """\
