@@ -11,7 +11,9 @@ services:
         value: 10000
       - key: VT_API_KEY
         value: ""
+      - key: DATA_DIR
+        value: /var/data
     disk:
       name: data
-      mountPath: /app
+      mountPath: /var/data
       sizeGB: 1

@@ -7,11 +7,15 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.resolve()
 
+# Persistentes Datenverzeichnis — auf Render: /var/data, lokal: ./data
+_DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 # Verzeichnisse
-UPLOAD_DIR = BASE_DIR / "uploads"
-IMAGES_DIR = BASE_DIR / "extracted_images"
-REPORTS_DIR = BASE_DIR / "generated_reports"
-DB_PATH = BASE_DIR / "forensik.db"
+UPLOAD_DIR  = _DATA_DIR / "uploads"
+IMAGES_DIR  = _DATA_DIR / "extracted_images"
+REPORTS_DIR = _DATA_DIR / "generated_reports"
+DB_PATH     = _DATA_DIR / "forensik.db"
 
 # Server — Render setzt HOST=0.0.0.0 und PORT=10000 via Env-Var
 HOST = os.environ.get("HOST", "127.0.0.1")
