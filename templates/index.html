@@ -744,49 +744,48 @@
   <!-- ======= RIGHT COLUMN ======= -->
   <div class="dashboard-right" id="dashboardRight">
 
-    <!-- Tabs -->
-    <div class="sidebar-tabs">
-      <div class="sidebar-tab active" data-tab="history">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <span data-i18n="nav_verlauf">Verlauf</span>
+    <!-- Verlauf / Vergleich Tabs -->
+    <div class="sidebar-box">
+      <div class="sidebar-tabs">
+        <div class="sidebar-tab active" data-tab="history">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span data-i18n="nav_verlauf">Verlauf</span>
+        </div>
+        <div class="sidebar-tab" data-tab="compare">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span data-i18n="nav_vergleich">Vergleich</span>
+        </div>
       </div>
-      <div class="sidebar-tab" data-tab="compare">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-        <span data-i18n="nav_vergleich">Vergleich</span>
+
+      <!-- HISTORY PANEL -->
+      <div class="sidebar-panel active" id="panelHistory">
+        <div class="sidebar-search-row">
+          <input type="text" id="sidebarSearch" placeholder="" data-i18n-placeholder="hist_search_ph">
+        </div>
+        <div id="sidebarHistoryList">
+          <div class="loading-spinner"><div class="spinner"></div></div>
+        </div>
       </div>
-      <div class="sidebar-tab" data-tab="chat">
+
+      <!-- COMPARE PANEL -->
+      <div class="sidebar-panel" id="panelCompare">
+        <div class="sidebar-compare-wrap">
+          <div id="compareSlots" class="compare-slots"></div>
+          <div class="compare-actions">
+            <button class="btn btn-ghost btn-sm" id="btnAddSlot" style="display:none" data-i18n="cmp_add_slot">+ Dokument</button>
+            <button class="btn btn-primary btn-sm" id="btnRunCompare" disabled data-i18n="cmp_run">Vergleich</button>
+          </div>
+          <div id="compareResult" style="display:none; margin-top: 10px;"></div>
+        </div>
+      </div>
+    </div><!-- /sidebar-box -->
+
+    <!-- KI-CHAT CONTAINER (eigener Block darunter) -->
+    <div class="chat-container" id="chatContainer">
+      <div class="chat-header">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span data-i18n="nav_chat">KI-Chat</span>
-      </div>
-    </div>
-
-    <!-- HISTORY PANEL -->
-    <div class="sidebar-panel active" id="panelHistory">
-      <div class="sidebar-search-row">
-        <input type="text" id="sidebarSearch" placeholder="" data-i18n-placeholder="hist_search_ph">
-      </div>
-      <div id="sidebarHistoryList">
-        <div class="loading-spinner"><div class="spinner"></div></div>
-      </div>
-    </div>
-
-    <!-- COMPARE PANEL -->
-    <div class="sidebar-panel" id="panelCompare">
-      <div class="sidebar-compare-wrap">
-        <div id="compareSlots" class="compare-slots"></div>
-        <div class="compare-actions">
-          <button class="btn btn-ghost btn-sm" id="btnAddSlot" style="display:none" data-i18n="cmp_add_slot">+ Dokument</button>
-          <button class="btn btn-primary btn-sm" id="btnRunCompare" disabled data-i18n="cmp_run">Vergleich</button>
-        </div>
-        <div id="compareResult" style="display:none; margin-top: 10px;"></div>
-      </div>
-    </div>
-
-    <!-- CHAT PANEL -->
-    <div class="sidebar-panel" id="panelChat">
-      <div class="chat-context-bar" id="chatContextBar">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <span id="chatContextName" data-i18n="chat_no_doc">Kein Dokument geladen</span>
+        <span class="chat-context-name" id="chatContextName" data-i18n="chat_no_doc">Kein Dokument geladen</span>
       </div>
       <div class="chat-messages" id="chatMessages">
         <div class="chat-welcome">
@@ -800,7 +799,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
       </div>
-    </div>
+    </div><!-- /chat-container -->
 
   </div><!-- /dashboard-right -->
 </div><!-- /dashboard-wrap -->
@@ -825,9 +824,9 @@
   </div>
 </div>
 
-<script src="/static/js/charts.js?v=7.8"></script>
-<script src="/static/js/forensic-context.js?v=7.8"></script>
-<script src="/static/js/results.js?v=7.8"></script>
-<script src="/static/js/chat.js?v=7.8"></script>
-<script src="/static/js/dashboard.js?v=7.8"></script>
+<script src="/static/js/charts.js?v=7.9"></script>
+<script src="/static/js/forensic-context.js?v=7.9"></script>
+<script src="/static/js/results.js?v=7.9"></script>
+<script src="/static/js/chat.js?v=7.9"></script>
+<script src="/static/js/dashboard.js?v=7.9"></script>
 {% endblock %}

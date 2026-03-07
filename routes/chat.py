@@ -24,20 +24,16 @@ FEATHERLESS_API_KEY = os.environ.get(
 )
 FEATHERLESS_MODEL = "deepseek-ai/DeepSeek-V3-0324"
 
-_SYSTEM_DE = """\
+_SYSTEM_BASE = """\
 Du bist ein forensischer PDF-Analyst-Assistent. Du hilfst dabei, Analyseergebnisse zu erklären
 und Fragen zum forensischen Befund zu beantworten.
 
 Antworte präzise, verständlich und hilfreich. Wenn ein Analysebericht vorliegt,
-beziehe dich konkret auf dessen Befunde. Antworte auf Deutsch.
-"""
+beziehe dich konkret auf dessen Befunde.
 
-_SYSTEM_EN = """\
-You are a forensic PDF analyst assistant. You help explain analysis results
-and answer questions about forensic findings.
-
-Answer precisely, clearly and helpfully. If an analysis report is available,
-refer specifically to its findings. Answer in English.
+WICHTIG: Antworte IMMER in der Sprache in der der Nutzer schreibt. \
+Schreibt er Deutsch, antworte auf Deutsch. Schreibt er Englisch, antworte auf Englisch. \
+Passe dich automatisch an — auch wenn die Sprache mid-conversation wechselt.
 """
 
 
@@ -117,7 +113,7 @@ async def _stream_chat(messages: list[dict]) -> AsyncIterator[str]:
 async def chat_endpoint(req: ChatRequest):
     """Chat mit DeepSeek über den aktuellen Analysebericht."""
     lang = req.lang if req.lang in ("de", "en") else "de"
-    system_prompt = _SYSTEM_DE if lang == "de" else _SYSTEM_EN
+    system_prompt = _SYSTEM_BASE
 
     # Kontext aus Analysebericht laden wenn analysis_id vorhanden
     if req.analysis_id:
