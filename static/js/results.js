@@ -159,6 +159,11 @@ function renderResult(data) {
     window.chatSetContext(data.analysis_id, data.filename);
   }
 
+  // URL aktualisieren → Reload stellt Bericht wieder her
+  if (data.analysis_id && window.history) {
+    window.history.replaceState(null, '', '/?analysis_id=' + data.analysis_id);
+  }
+
   // KI-Review Panel zurücksetzen — wird nach dem Laden neu befüllt
   var _aiPanel = document.getElementById('aiReviewPanel');
   if (_aiPanel) {
