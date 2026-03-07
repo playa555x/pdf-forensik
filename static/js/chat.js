@@ -33,13 +33,31 @@
   };
 
   // ── Nachricht rendern ─────────────────────────────────────
+  function _md(text) {
+    // Einfaches Markdown → HTML (nur relevante Patterns)
+    return text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/^### (.+)$/gm, '<b>$1</b>')
+      .replace(/^## (.+)$/gm,  '<b>$1</b>')
+      .replace(/^# (.+)$/gm,   '<b>$1</b>')
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/\*(.+?)\*/g,    '<i>$1</i>')
+      .replace(/`(.+?)`/g,      '<code>$1</code>')
+      .replace(/^[-*] (.+)$/gm, '• $1')
+      .replace(/\n/g, '<br>');
+  }
+
   function _appendMsg(role, text, streaming) {
     var welcome = _msgs().querySelector('.chat-welcome');
     if (welcome) welcome.remove();
 
     var div = document.createElement('div');
     div.className = 'chat-msg chat-msg-' + role + (streaming ? ' streaming' : '');
-    div.textContent = text;
+    if (role === 'assistant' && text) {
+      div.innerHTML = _md(text);
+    } else {
+      div.textContent = text;
+    }
     _msgs().appendChild(div);
     _msgs().scrollTop = _msgs().scrollHeight;
     return div;
@@ -116,12 +134,12 @@
               var parsed = JSON.parse(data);
               if (parsed.error) {
                 bubble.classList.remove('streaming');
-                bubble.textContent = '⚠ ' + parsed.error;
+                bubble.innerHTML = '⚠ ' + _md(parsed.error);
                 break;
               }
               if (parsed.content) {
                 accumulated += parsed.content;
-                bubble.textContent = accumulated;
+                bubble.innerHTML = _md(accumulated);
                 bubble.classList.add('streaming');
                 _msgs().scrollTop = _msgs().scrollHeight;
               }
