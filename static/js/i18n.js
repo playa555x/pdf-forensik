@@ -955,6 +955,12 @@ const TRANSLATIONS = {
     phase_extended:        "Extended",
     lbl_images:            "Bilder",
     err_unknown:           "Unbekannter Fehler",
+
+    // Chat
+    nav_chat:              "KI-Chat",
+    chat_no_doc:           "Kein Dokument geladen",
+    chat_welcome:          "Ich bin dein forensischer Assistent. Lade ein Dokument und stelle mir Fragen dazu.",
+    chat_placeholder:      "Frage zum Bericht…",
   },
 
   en: {
@@ -1888,6 +1894,12 @@ const TRANSLATIONS = {
     phase_extended:        "Extended",
     lbl_images:            "Images",
     err_unknown:           "Unknown error",
+
+    // Chat
+    nav_chat:              "AI Chat",
+    chat_no_doc:           "No document loaded",
+    chat_welcome:          "I am your forensic assistant. Load a document and ask me questions about it.",
+    chat_placeholder:      "Ask about the report…",
   }
 };
 

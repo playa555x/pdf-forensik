@@ -154,6 +154,11 @@ function renderResult(data) {
   currentFilename   = data.filename;
   _lastAnalysisData = data;   // für Sprach-Re-Render cachen
 
+  // Chat-Kontext setzen (damit KI-Chat das aktuelle Dokument kennt)
+  if (typeof window.chatSetContext === 'function') {
+    window.chatSetContext(data.analysis_id, data.filename);
+  }
+
   // KI-Review Panel zurücksetzen — wird nach dem Laden neu befüllt
   var _aiPanel = document.getElementById('aiReviewPanel');
   if (_aiPanel) {

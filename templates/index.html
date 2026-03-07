@@ -754,6 +754,10 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         <span data-i18n="nav_vergleich">Vergleich</span>
       </div>
+      <div class="sidebar-tab" data-tab="chat">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span data-i18n="nav_chat">KI-Chat</span>
+      </div>
     </div>
 
     <!-- HISTORY PANEL -->
@@ -775,6 +779,26 @@
           <button class="btn btn-primary btn-sm" id="btnRunCompare" disabled data-i18n="cmp_run">Vergleich</button>
         </div>
         <div id="compareResult" style="display:none; margin-top: 10px;"></div>
+      </div>
+    </div>
+
+    <!-- CHAT PANEL -->
+    <div class="sidebar-panel" id="panelChat">
+      <div class="chat-context-bar" id="chatContextBar">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span id="chatContextName" data-i18n="chat_no_doc">Kein Dokument geladen</span>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-welcome">
+          <div class="chat-welcome-icon">🤖</div>
+          <div class="chat-welcome-text" data-i18n="chat_welcome">Ich bin dein forensischer Assistent. Lade ein Dokument und stelle mir Fragen dazu.</div>
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <textarea id="chatInput" class="chat-input" rows="2" data-i18n-placeholder="chat_placeholder" placeholder="Frage zum Bericht..."></textarea>
+        <button class="chat-send-btn" id="chatSendBtn" title="Senden">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
       </div>
     </div>
 
@@ -804,5 +828,6 @@
 <script src="/static/js/charts.js?v=7.8"></script>
 <script src="/static/js/forensic-context.js?v=7.8"></script>
 <script src="/static/js/results.js?v=7.8"></script>
+<script src="/static/js/chat.js?v=7.8"></script>
 <script src="/static/js/dashboard.js?v=7.8"></script>
 {% endblock %}
