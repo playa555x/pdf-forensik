@@ -1,0 +1,1746 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="UTF-8">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   PDF FORENSIK ANALYZER v2 — WeasyPrint Report Template
+   Modern Dark Theme with SVG Charts & Embedded Evidence
+═══════════════════════════════════════════════════════════════ */
+
+@page {
+    size: A4;
+    margin: 16mm 16mm 20mm 16mm;
+    background: #0f172a;
+    @bottom-center {
+        content: counter(page) " / " counter(pages);
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 7pt;
+        color: #475569;
+    }
+    @bottom-left {
+        content: "PDF Forensik Analyzer";
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 6.5pt;
+        color: #334155;
+        letter-spacing: 1pt;
+    }
+    @bottom-right {
+        content: "{{ t('confidential') }}";
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 6pt;
+        color: #334155;
+    }
+}
+
+@page cover {
+    margin: 0;
+    @bottom-center { content: none; }
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 9pt;
+    color: #cbd5e1;
+    line-height: 1.5;
+    background: #0f172a;
+}
+
+/* ══ COVER PAGE ═══════════════════════════════════════════════ */
+.cover {
+    page: cover;
+    background: linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    width: 210mm;
+    height: 297mm;
+    padding: 0;
+    position: relative;
+    page-break-after: always;
+}
+
+.cover-accent-bar {
+    height: 4pt;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6);
+}
+
+.cover-content {
+    padding: 28mm 22mm 0 22mm;
+}
+
+.cover-badge {
+    display: inline-block;
+    font-size: 6.5pt;
+    letter-spacing: 3pt;
+    color: #3b82f6;
+    font-weight: 700;
+    border: 1pt solid #1e3a5f;
+    padding: 2mm 4mm;
+    border-radius: 3pt;
+    margin-bottom: 6mm;
+}
+
+.cover-title {
+    font-size: 28pt;
+    font-weight: 800;
+    color: #f1f5f9;
+    line-height: 1.15;
+    margin-bottom: 3mm;
+    letter-spacing: -0.5pt;
+}
+
+.cover-subtitle {
+    font-size: 11pt;
+    color: #64748b;
+    margin-bottom: 12mm;
+    font-weight: 300;
+}
+
+.cover-file-box {
+    background: #1e293b;
+    border: 1pt solid #334155;
+    border-left: 3pt solid #3b82f6;
+    padding: 4mm 5mm;
+    margin-bottom: 8mm;
+    border-radius: 0 4pt 4pt 0;
+}
+
+.cover-file-label {
+    font-size: 6pt;
+    color: #475569;
+    letter-spacing: 2pt;
+    margin-bottom: 1mm;
+}
+
+.cover-file-name {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 9pt;
+    color: #93c5fd;
+    word-break: break-all;
+}
+
+/* Risk + Charts row */
+.cover-risk-row {
+    display: flex;
+    gap: 8mm;
+    margin-bottom: 8mm;
+    align-items: flex-start;
+}
+
+.cover-risk-box {
+    padding: 5mm;
+    border-radius: 6pt;
+    text-align: center;
+    min-width: 50mm;
+}
+
+.risk-HIGH   { background: rgba(239,68,68,0.1); border: 1.5pt solid #dc2626; }
+.risk-MEDIUM { background: rgba(245,158,11,0.1); border: 1.5pt solid #d97706; }
+.risk-LOW    { background: rgba(59,130,246,0.1); border: 1.5pt solid #2563eb; }
+.risk-CLEAN  { background: rgba(34,197,94,0.1); border: 1.5pt solid #16a34a; }
+.risk-UNKNOWN{ background: rgba(107,114,128,0.1); border: 1.5pt solid #6b7280; }
+
+.risk-level-label {
+    font-size: 6pt;
+    color: #94a3b8;
+    letter-spacing: 2pt;
+    display: block;
+}
+
+.risk-level-value {
+    font-size: 22pt;
+    font-weight: 800;
+    display: block;
+    margin-top: 1mm;
+}
+
+.risk-level-value.HIGH   { color: #f87171; }
+.risk-level-value.MEDIUM { color: #fbbf24; }
+.risk-level-value.LOW    { color: #60a5fa; }
+.risk-level-value.CLEAN  { color: #4ade80; }
+.risk-level-value.UNKNOWN{ color: #9ca3af; }
+
+/* Anomaly summary bars */
+.anom-bars {
+    margin-bottom: 8mm;
+}
+
+.anom-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+    margin-bottom: 2mm;
+}
+
+.anom-bar-label {
+    font-size: 7pt;
+    font-weight: 700;
+    width: 12mm;
+    text-align: right;
+}
+
+.anom-bar-track {
+    flex: 1;
+    height: 7pt;
+    background: #1e3a5f;
+    border-radius: 4pt;
+    overflow: hidden;
+}
+
+.anom-bar-fill {
+    height: 100%;
+    border-radius: 4pt;
+    min-width: 1pt;
+}
+
+.anom-bar-count {
+    font-size: 8pt;
+    font-weight: 700;
+    width: 8mm;
+}
+
+.c-high   { color: #f87171; }
+.c-medium { color: #fbbf24; }
+.c-low    { color: #60a5fa; }
+.c-clean  { color: #4ade80; }
+
+.fill-high   { background: #ef4444; }
+.fill-medium { background: #f59e0b; }
+.fill-low    { background: #3b82f6; }
+
+/* Cover meta grid */
+.cover-meta {
+    display: flex;
+    gap: 5mm;
+    border-top: 0.5pt solid #1e3a5f;
+    padding-top: 5mm;
+    margin-top: 5mm;
+    flex-wrap: wrap;
+}
+
+.cover-meta-item {
+    flex: 1;
+    min-width: 35mm;
+}
+
+.cover-meta-label {
+    font-size: 5.5pt;
+    color: #475569;
+    letter-spacing: 1.5pt;
+    margin-bottom: 0.5mm;
+}
+
+.cover-meta-value {
+    font-size: 8pt;
+    color: #94a3b8;
+}
+
+.cover-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 4mm 22mm;
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    justify-content: space-between;
+}
+
+.cover-footer-text {
+    font-size: 6.5pt;
+    color: #334155;
+}
+
+/* ══ CONTENT PAGES ════════════════════════════════════════════ */
+
+/* Page header band */
+.page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1.5pt solid #1e3a5f;
+    padding-bottom: 2mm;
+    margin-bottom: 5mm;
+}
+
+.page-head-left {
+    font-size: 6.5pt;
+    color: #3b82f6;
+    font-weight: 700;
+    letter-spacing: 1.5pt;
+}
+
+.page-head-right {
+    font-size: 6.5pt;
+    color: #475569;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+/* Section header */
+.sec-header {
+    background: linear-gradient(135deg, #1e3a5f, #172554);
+    border-left: 4pt solid #3b82f6;
+    padding: 3.5mm 5mm;
+    margin: 5mm 0 3mm 0;
+    border-radius: 0 4pt 4pt 0;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+}
+
+.sec-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #e2e8f0;
+    display: inline;
+}
+
+.sec-status {
+    float: right;
+    font-size: 7pt;
+    font-weight: 700;
+    padding: 1mm 3mm;
+    border-radius: 3pt;
+}
+
+.sec-status-ok     { background: rgba(34,197,94,0.2); color: #4ade80; border: 0.5pt solid #16a34a; }
+.sec-status-high   { background: rgba(239,68,68,0.2); color: #f87171; border: 0.5pt solid #dc2626; }
+.sec-status-medium { background: rgba(245,158,11,0.2); color: #fbbf24; border: 0.5pt solid #d97706; }
+.sec-status-low    { background: rgba(59,130,246,0.2); color: #60a5fa; border: 0.5pt solid #2563eb; }
+
+/* Explanation box */
+.explain {
+    background: rgba(14,165,233,0.08);
+    border: 0.5pt solid rgba(14,165,233,0.2);
+    border-radius: 4pt;
+    padding: 3mm 4mm;
+    margin-bottom: 3mm;
+    font-size: 8pt;
+    color: #7dd3fc;
+    line-height: 1.55;
+    page-break-inside: avoid;
+}
+
+/* Examples row */
+.examples {
+    display: flex;
+    gap: 2mm;
+    margin-bottom: 4mm;
+    page-break-inside: avoid;
+}
+
+.example-box {
+    flex: 1;
+    padding: 2.5mm 3.5mm;
+    font-size: 7.5pt;
+    line-height: 1.4;
+    border-radius: 3pt;
+}
+
+.ex-good {
+    background: rgba(34,197,94,0.08);
+    border: 0.5pt solid rgba(34,197,94,0.25);
+    color: #86efac;
+}
+
+.ex-bad {
+    background: rgba(239,68,68,0.08);
+    border: 0.5pt solid rgba(239,68,68,0.25);
+    color: #fca5a5;
+}
+
+.ex-label {
+    font-weight: 700;
+    margin-right: 2mm;
+}
+
+/* KV Table (dark) */
+.kv {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 3mm;
+    page-break-inside: avoid;
+}
+
+.kv tr { page-break-inside: avoid; }
+
+.kv tr:nth-child(odd)  { background: #1e293b; }
+.kv tr:nth-child(even) { background: #0f172a; }
+
+.kv td {
+    padding: 2.5mm 3.5mm;
+    border: 0.5pt solid #334155;
+    vertical-align: top;
+}
+
+.kv-k {
+    font-weight: 600;
+    color: #94a3b8;
+    width: 48mm;
+    font-size: 8pt;
+}
+
+.kv-v {
+    font-size: 8.5pt;
+    color: #e2e8f0;
+    word-break: break-all;
+}
+
+.mono {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 7.5pt;
+}
+
+/* Data table (dark) */
+.dt {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 3mm;
+    font-size: 8pt;
+}
+
+.dt th {
+    background: #334155;
+    color: #e2e8f0;
+    padding: 2.5mm 3mm;
+    text-align: left;
+    font-size: 7.5pt;
+    font-weight: 600;
+    border: 0.5pt solid #475569;
+    page-break-after: avoid;
+}
+
+.dt tr { page-break-inside: avoid; }
+
+.dt td {
+    padding: 2mm 3mm;
+    border: 0.5pt solid #334155;
+    vertical-align: top;
+    color: #cbd5e1;
+}
+
+.dt tr:nth-child(odd)  td { background: #1e293b; }
+.dt tr:nth-child(even) td { background: #0f172a; }
+
+/* Anomaly table */
+.anom-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 3mm 0;
+    font-size: 8pt;
+}
+
+.anom-table th {
+    background: #450a0a;
+    color: #fca5a5;
+    padding: 2mm 3mm;
+    text-align: left;
+    font-size: 7pt;
+    font-weight: 600;
+    border: 0.5pt solid #7f1d1d;
+}
+
+.anom-table td {
+    padding: 2mm 3mm;
+    border: 0.5pt solid #334155;
+    vertical-align: top;
+}
+
+.anom-table tr:nth-child(odd)  td { background: rgba(239,68,68,0.04); }
+.anom-table tr:nth-child(even) td { background: #0f172a; }
+
+/* Severity badges */
+.sev {
+    display: inline-block;
+    padding: 0.5mm 2.5mm;
+    font-size: 6.5pt;
+    font-weight: 700;
+    border-radius: 2pt;
+    letter-spacing: 0.5pt;
+}
+
+.sev-HIGH   { background: rgba(239,68,68,0.2); color: #f87171; border: 0.5pt solid #dc2626; }
+.sev-MEDIUM { background: rgba(245,158,11,0.2); color: #fbbf24; border: 0.5pt solid #d97706; }
+.sev-LOW    { background: rgba(59,130,246,0.2); color: #60a5fa; border: 0.5pt solid #2563eb; }
+.sev-INFO   { background: rgba(107,114,128,0.2); color: #9ca3af; border: 0.5pt solid #6b7280; }
+
+/* Info boxes */
+.info-box {
+    padding: 3mm 4mm;
+    margin-bottom: 3mm;
+    font-size: 8.5pt;
+    line-height: 1.5;
+    border-radius: 4pt;
+    page-break-inside: avoid;
+    display: flex;
+    gap: 3mm;
+    align-items: flex-start;
+}
+
+.info-icon { font-size: 11pt; flex-shrink: 0; }
+
+.info-ok      { background: rgba(34,197,94,0.08); border: 0.5pt solid rgba(34,197,94,0.3); color: #86efac; }
+.info-warning { background: rgba(245,158,11,0.08); border: 0.5pt solid rgba(245,158,11,0.3); color: #fcd34d; }
+.info-danger  { background: rgba(239,68,68,0.08); border: 0.5pt solid rgba(239,68,68,0.3); color: #fca5a5; }
+.info-neutral { background: rgba(59,130,246,0.08); border: 0.5pt solid rgba(59,130,246,0.3); color: #93c5fd; }
+
+/* Hash blocks */
+.hash-block {
+    background: #0f172a;
+    border: 0.5pt solid #334155;
+    padding: 2.5mm 4mm;
+    margin-bottom: 2mm;
+    border-radius: 3pt;
+    page-break-inside: avoid;
+}
+
+.hash-algo {
+    font-size: 6pt;
+    color: #475569;
+    letter-spacing: 1.5pt;
+    margin-bottom: 0.5mm;
+}
+
+.hash-val {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 7.5pt;
+    color: #7dd3fc;
+    word-break: break-all;
+    line-height: 1.3;
+}
+
+/* Subsection */
+.subsec {
+    font-size: 9pt;
+    font-weight: 700;
+    color: #94a3b8;
+    margin: 4mm 0 2mm 0;
+    border-bottom: 0.5pt solid #334155;
+    padding-bottom: 1mm;
+    page-break-after: avoid;
+}
+
+/* Evidence image container */
+.evidence-img {
+    text-align: center;
+    margin: 3mm 0;
+    page-break-inside: avoid;
+}
+
+.evidence-img img {
+    max-width: 100%;
+    max-height: 80mm;
+    border: 1pt solid #334155;
+    border-radius: 4pt;
+}
+
+.evidence-caption {
+    font-size: 7pt;
+    color: #64748b;
+    margin-top: 1mm;
+    font-style: italic;
+}
+
+/* Evidence gallery (side by side) */
+.evidence-row {
+    display: flex;
+    gap: 3mm;
+    margin: 3mm 0;
+    page-break-inside: avoid;
+}
+
+.evidence-cell {
+    flex: 1;
+    text-align: center;
+}
+
+.evidence-cell img {
+    max-width: 100%;
+    max-height: 60mm;
+    border: 1pt solid #334155;
+    border-radius: 3pt;
+}
+
+/* Chart container */
+.chart-container {
+    text-align: center;
+    margin: 3mm 0;
+    page-break-inside: avoid;
+}
+
+/* Analyzer grid */
+.analyzer-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2mm;
+    margin: 3mm 0;
+    page-break-inside: avoid;
+}
+
+.analyzer-chip {
+    padding: 2mm 3mm;
+    border-radius: 4pt;
+    font-size: 7.5pt;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 1.5mm;
+    min-width: 52mm;
+}
+
+.analyzer-chip-ok     { background: rgba(34,197,94,0.1); border: 0.5pt solid rgba(34,197,94,0.3); color: #4ade80; }
+.analyzer-chip-high   { background: rgba(239,68,68,0.1); border: 0.5pt solid rgba(239,68,68,0.3); color: #f87171; }
+.analyzer-chip-medium { background: rgba(245,158,11,0.1); border: 0.5pt solid rgba(245,158,11,0.3); color: #fbbf24; }
+.analyzer-chip-low    { background: rgba(59,130,246,0.1); border: 0.5pt solid rgba(59,130,246,0.3); color: #60a5fa; }
+
+.chip-dot {
+    width: 6pt;
+    height: 6pt;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.dot-ok     { background: #22c55e; }
+.dot-high   { background: #ef4444; }
+.dot-medium { background: #f59e0b; }
+.dot-low    { background: #3b82f6; }
+
+.chip-count {
+    margin-left: auto;
+    font-size: 7pt;
+    opacity: 0.7;
+}
+
+/* Summary badges row */
+.summary-row {
+    display: flex;
+    gap: 3mm;
+    margin-bottom: 5mm;
+    page-break-inside: avoid;
+}
+
+.summary-card {
+    flex: 1;
+    padding: 3mm;
+    border-radius: 4pt;
+    text-align: center;
+}
+
+.summary-card-total  { background: #1e293b; border: 1pt solid #334155; }
+.summary-card-high   { background: rgba(239,68,68,0.08); border: 1pt solid rgba(239,68,68,0.3); }
+.summary-card-medium { background: rgba(245,158,11,0.08); border: 1pt solid rgba(245,158,11,0.3); }
+.summary-card-low    { background: rgba(59,130,246,0.08); border: 1pt solid rgba(59,130,246,0.3); }
+
+.sc-label {
+    font-size: 5.5pt;
+    color: #64748b;
+    letter-spacing: 1.5pt;
+    display: block;
+}
+
+.sc-number {
+    font-size: 20pt;
+    font-weight: 800;
+    display: block;
+    margin-top: 1mm;
+}
+
+.sc-total  .sc-number { color: #e2e8f0; }
+.sc-high   .sc-number { color: #f87171; }
+.sc-medium .sc-number { color: #fbbf24; }
+.sc-low    .sc-number { color: #60a5fa; }
+
+/* Page break helpers */
+.pb { page-break-before: always; }
+.no-break { page-break-inside: avoid; }
+
+/* JS Snippet */
+.code-block {
+    background: #0f172a;
+    border: 0.5pt solid #334155;
+    border-left: 3pt solid #ef4444;
+    padding: 3mm 4mm;
+    margin: 2mm 0;
+    border-radius: 0 3pt 3pt 0;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 7pt;
+    color: #fbbf24;
+    word-break: break-all;
+    white-space: pre-wrap;
+    line-height: 1.4;
+    page-break-inside: avoid;
+}
+
+/* URL styling */
+.url-suspicious { color: #f87171; font-weight: 700; }
+.url-safe { color: #94a3b8; }
+
+/* Divider */
+hr.divider {
+    border: none;
+    border-top: 0.5pt solid #334155;
+    margin: 3mm 0;
+}
+
+</style>
+</head>
+<body>
+
+{# ══════════════════════════════════════════════════════════════
+   COVER PAGE
+══════════════════════════════════════════════════════════════ #}
+<div class="cover">
+  <div class="cover-accent-bar"></div>
+  <div class="cover-content">
+
+    <div class="cover-badge">PDF FORENSIK ANALYZER</div>
+    <div class="cover-title">{{ t('report_title') }}</div>
+    <div class="cover-subtitle">{{ t('report_subtitle') }}</div>
+
+    <div class="cover-file-box">
+      <div class="cover-file-label">{{ t('file') | upper }}</div>
+      <div class="cover-file-name">{{ r.filename }}</div>
+    </div>
+
+    {# Risk + Charts side by side #}
+    <div class="cover-risk-row">
+      <div class="cover-risk-box risk-{{ r.risk_level.value }}">
+        <span class="risk-level-label">{{ t('risk_label') }}</span>
+        <span class="risk-level-value {{ r.risk_level.value }}">{{ r.risk_level.value }}</span>
+      </div>
+
+      <div style="flex:1">
+        {# Anomaly bars #}
+        {% set total_anom = [r.anomaly_count_high + r.anomaly_count_medium + r.anomaly_count_low, 1] | max %}
+        <div class="anom-bars">
+          <div class="anom-bar-row">
+            <span class="anom-bar-label c-high">HIGH</span>
+            <div class="anom-bar-track"><div class="anom-bar-fill fill-high" style="width:{{ ((r.anomaly_count_high / total_anom) * 100) | int }}%"></div></div>
+            <span class="anom-bar-count c-high">{{ r.anomaly_count_high }}</span>
+          </div>
+          <div class="anom-bar-row">
+            <span class="anom-bar-label c-medium">MEDIUM</span>
+            <div class="anom-bar-track"><div class="anom-bar-fill fill-medium" style="width:{{ ((r.anomaly_count_medium / total_anom) * 100) | int }}%"></div></div>
+            <span class="anom-bar-count c-medium">{{ r.anomaly_count_medium }}</span>
+          </div>
+          <div class="anom-bar-row">
+            <span class="anom-bar-label c-low">LOW</span>
+            <div class="anom-bar-track"><div class="anom-bar-fill fill-low" style="width:{{ ((r.anomaly_count_low / total_anom) * 100) | int }}%"></div></div>
+            <span class="anom-bar-count c-low">{{ r.anomaly_count_low }}</span>
+          </div>
+        </div>
+      </div>
+
+      {# Donut Chart #}
+      <div class="chart-container">
+        {{ donut_svg | safe }}
+      </div>
+    </div>
+
+    {# Risk Gauge #}
+    <div class="chart-container" style="margin-bottom:5mm">
+      {{ gauge_svg | safe }}
+    </div>
+
+    {# Meta grid #}
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">{{ t('analysis_id') | upper }}</div>
+        <div class="cover-meta-value mono">{{ r.analysis_id[:16] }}...</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">{{ t('analyzed_at') | upper }}</div>
+        <div class="cover-meta-value">{{ r.analyzed_at }}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">{{ t('file_size') | upper }}</div>
+        <div class="cover-meta-value">{{ "%.2f" | format(r.file_size_bytes / 1048576) }} MB</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">{{ t('format') | upper }}</div>
+        <div class="cover-meta-value">{{ r.original_format or "PDF" }}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">{{ t('lbl_pages') | upper }}</div>
+        <div class="cover-meta-value">{{ r.metadata.page_count }}</div>
+      </div>
+    </div>
+
+    <div style="margin-top:5mm">
+      <div class="cover-meta-label">SHA-256</div>
+      <div class="mono" style="font-size:7pt; color:#475569; word-break:break-all; margin-top:1mm">{{ r.hashes.sha256 }}</div>
+    </div>
+
+  </div>
+
+  <div class="cover-footer">
+    <span class="cover-footer-text">{{ t('generated') }} {{ now }}</span>
+    <span class="cover-footer-text">{{ t('confidential') }}</span>
+  </div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════
+   EXECUTIVE SUMMARY
+══════════════════════════════════════════════════════════════ #}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">EXECUTIVE SUMMARY</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+
+  <div class="sec-header">
+    <span class="sec-title">{{ t('exec_summary') }}</span>
+  </div>
+
+  <div class="explain">{{ t('exec_expl') }}</div>
+
+  {# Summary badges #}
+  <div class="summary-row">
+    <div class="summary-card summary-card-total sc-total">
+      <span class="sc-label">{{ t('total') | upper }}</span>
+      <span class="sc-number">{{ r.anomaly_count_high + r.anomaly_count_medium + r.anomaly_count_low }}</span>
+    </div>
+    <div class="summary-card summary-card-high sc-high">
+      <span class="sc-label">HIGH</span>
+      <span class="sc-number">{{ r.anomaly_count_high }}</span>
+    </div>
+    <div class="summary-card summary-card-medium sc-medium">
+      <span class="sc-label">MEDIUM</span>
+      <span class="sc-number">{{ r.anomaly_count_medium }}</span>
+    </div>
+    <div class="summary-card summary-card-low sc-low">
+      <span class="sc-label">LOW</span>
+      <span class="sc-number">{{ r.anomaly_count_low }}</span>
+    </div>
+  </div>
+
+  {# Top findings #}
+  {% set high_anoms = r.all_anomalies | selectattr('severity.value', 'equalto', 'HIGH') | list %}
+  {% set med_anoms  = r.all_anomalies | selectattr('severity.value', 'equalto', 'MEDIUM') | list %}
+
+  {% if high_anoms %}
+  <div class="subsec">{{ t('exec_critical') }}</div>
+  {% for a in high_anoms[:5] %}
+  <div class="info-box info-danger no-break">
+    <span class="info-icon">&#9888;</span>
+    <div><b>[{{ a.category }}]</b> {{ a.message }}{% if a.detail %}<br><span style="font-size:7pt; opacity:0.8">{{ a.detail[:220] }}</span>{% endif %}</div>
+  </div>
+  {% endfor %}
+  {% elif med_anoms %}
+  <div class="subsec">{{ t('exec_medium') }}</div>
+  {% for a in med_anoms[:4] %}
+  <div class="info-box info-warning no-break">
+    <span class="info-icon">&#9888;</span>
+    <div><b>[{{ a.category }}]</b> {{ a.message }}{% if a.detail %}<br><span style="font-size:7pt; opacity:0.8">{{ a.detail[:200] }}</span>{% endif %}</div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="info-box info-ok">
+    <span class="info-icon">&#10004;</span>
+    <div>{{ t('exec_clean') }}</div>
+  </div>
+  {% endif %}
+
+  {# Analyzer Grid with Radar #}
+  <div class="subsec">{{ t('exec_analyzer_grid') }}</div>
+
+  {% if radar_svg %}
+  <div class="chart-container" style="margin-bottom:4mm">
+    {{ radar_svg | safe }}
+  </div>
+  {% endif %}
+
+  <div class="analyzer-grid">
+    {% for name, cls, label, count in analyzers %}
+    <div class="analyzer-chip analyzer-chip-{{ cls }}">
+      <span class="chip-dot dot-{{ cls }}"></span>
+      {{ name }}
+      {% if count > 0 %}<span class="chip-count">{{ label }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════
+   HASHES + METADATEN
+══════════════════════════════════════════════════════════════ #}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">{{ t('sec_hashes') | upper }}</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+
+  {% set sec_anomalies = [] %}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_hashes') }}</span>
+    <span class="sec-status sec-status-ok">OK</span>
+  </div>
+
+  <div class="explain">{{ t('hash_expl') }}</div>
+
+  <div class="examples">
+    <div class="example-box ex-good"><span class="ex-label">&#10004;</span> {{ t('hash_good') }}</div>
+    <div class="example-box ex-bad"><span class="ex-label">&#10008;</span> {{ t('hash_bad') }}</div>
+  </div>
+
+  <div class="hash-block"><div class="hash-algo">MD5</div><div class="hash-val">{{ r.hashes.md5 }}</div></div>
+  <div class="hash-block"><div class="hash-algo">SHA-1</div><div class="hash-val">{{ r.hashes.sha1 }}</div></div>
+  <div class="hash-block"><div class="hash-algo">SHA-256</div><div class="hash-val">{{ r.hashes.sha256 }}</div></div>
+  <div class="hash-block"><div class="hash-algo">SHA-512</div><div class="hash-val">{{ r.hashes.sha512 }}</div></div>
+
+  <table class="kv" style="margin-top:3mm">
+    <tr><td class="kv-k">{{ t('file_size') }}</td><td class="kv-v">{{ "{:,}".format(r.file_size_bytes) }} Bytes ({{ "%.2f"|format(r.file_size_bytes/1048576) }} MB)</td></tr>
+  </table>
+
+  <hr class="divider">
+
+  {# Metadaten #}
+  {% set meta_status = 'high' if r.metadata.anomalies | selectattr('severity.value', 'equalto', 'HIGH') | list else ('medium' if r.metadata.anomalies | selectattr('severity.value', 'equalto', 'MEDIUM') | list else 'ok') %}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_metadata') }}</span>
+    <span class="sec-status sec-status-{{ meta_status }}">{% if meta_status == 'ok' %}OK{% elif meta_status == 'high' %}{{ r.metadata.anomalies | length }} FINDINGS{% else %}{{ r.metadata.anomalies | length }} FINDINGS{% endif %}</span>
+  </div>
+
+  <div class="explain">{{ t('meta_expl') }}</div>
+
+  {% if r.metadata.anomalies %}
+  <div class="examples">
+    <div class="example-box ex-good"><span class="ex-label">&#10004;</span> {{ t('meta_good') }}</div>
+    <div class="example-box ex-bad"><span class="ex-label">&#10008;</span> {{ t('meta_bad') }}</div>
+  </div>
+  {% endif %}
+
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_title') }}</td><td class="kv-v">{{ r.metadata.title or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_author') }}</td><td class="kv-v">{{ r.metadata.author or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_subject') }}</td><td class="kv-v">{{ r.metadata.subject or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_keywords') }}</td><td class="kv-v">{{ r.metadata.keywords or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_creator') }}</td><td class="kv-v">{{ r.metadata.creator or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_producer') }}</td><td class="kv-v">{{ r.metadata.producer or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_created') }}</td><td class="kv-v mono">{{ r.metadata.creation_date_parsed or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_modified') }}</td><td class="kv-v mono">{{ r.metadata.mod_date_parsed or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_pdf_version') }}</td><td class="kv-v">{{ r.metadata.pdf_version or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_pages') }}</td><td class="kv-v">{{ r.metadata.page_count }}</td></tr>
+  </table>
+
+  {% if r.metadata.anomalies %}{{ anomaly_table(r.metadata.anomalies) | safe }}{% endif %}
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════
+   SOFTWARE + SIGNATUREN (fließend — kein page-break)
+══════════════════════════════════════════════════════════════ #}
+<div>
+
+  {% set sw_status = 'high' if r.software_fingerprint.anomalies | selectattr('severity.value', 'equalto', 'HIGH') | list else ('medium' if r.software_fingerprint.anomalies | selectattr('severity.value', 'equalto', 'MEDIUM') | list else 'ok') %}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_software') }}</span>
+    <span class="sec-status sec-status-{{ sw_status }}">{% if sw_status == 'ok' %}OK{% else %}{{ r.software_fingerprint.anomalies | length }} FINDINGS{% endif %}</span>
+  </div>
+
+  <div class="explain">{{ t('sw_expl') }}</div>
+
+  <div class="examples">
+    <div class="example-box ex-good"><span class="ex-label">&#10004;</span> {{ t('sw_good') }}</div>
+    <div class="example-box ex-bad"><span class="ex-label">&#10008;</span> {{ t('sw_bad') }}</div>
+  </div>
+
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_tool') }}</td><td class="kv-v">{{ r.software_fingerprint.identified_tool or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_category') }}</td><td class="kv-v">{{ r.software_fingerprint.tool_category or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_version') }}</td><td class="kv-v">{{ r.software_fingerprint.version_hint or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_producer_raw') }}</td><td class="kv-v mono">{{ r.software_fingerprint.producer_raw or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_creator_raw') }}</td><td class="kv-v mono">{{ r.software_fingerprint.creator_raw or '—' }}</td></tr>
+  </table>
+  {% if r.software_fingerprint.anomalies %}{{ anomaly_table(r.software_fingerprint.anomalies) | safe }}{% endif %}
+
+  <hr class="divider">
+
+  {# Signaturen #}
+  {% set sig_status = 'high' if r.signature.anomalies | selectattr('severity.value', 'equalto', 'HIGH') | list else ('medium' if r.signature.anomalies | selectattr('severity.value', 'equalto', 'MEDIUM') | list else 'ok') %}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_signatures') }}</span>
+    <span class="sec-status sec-status-{{ sig_status }}">{% if sig_status == 'ok' %}OK{% else %}{{ r.signature.anomalies | length }} FINDINGS{% endif %}</span>
+  </div>
+
+  <div class="explain">{{ t('sig_expl') }}</div>
+
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_acroform') }}</td><td class="kv-v">{{ t('yes') if r.signature.has_acroform else t('no') }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_sig_field') }}</td><td class="kv-v">{{ t('yes') if r.signature.has_sig_field else t('no') }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_doc_mdp') }}</td><td class="kv-v">{{ t('yes') if r.signature.has_doc_mdp else t('no') }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_sig_names') }}</td><td class="kv-v">{{ r.signature.sig_field_names | join(', ') if r.signature.sig_field_names else '—' }}</td></tr>
+  </table>
+
+  {% if r.shadow_attack %}
+  <div class="subsec">{{ t('lbl_shadow_analysis') }}</div>
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_sig_count') }}</td><td class="kv-v">{{ r.shadow_attack.signature_count }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_isa_entries') }}</td><td class="kv-v">{{ r.shadow_attack.isa_analysis | length }}</td></tr>
+  </table>
+  {% if r.shadow_attack.isa_analysis %}
+  <table class="dt">
+    <thead><tr><th>#</th><th>{{ t('col_bytes_after') }}</th><th>{{ t('col_xref_after') }}</th><th>{{ t('col_doc_end') }}</th></tr></thead>
+    <tbody>
+    {% for e in r.shadow_attack.isa_analysis[:8] %}
+    <tr><td>{{ e.get('sig_index','?') }}</td><td>{{ e.get('bytes_after_sig','?') }}</td><td>{{ t('yes') if e.get('has_xref_after') else t('no') }}</td><td class="mono">{{ e.get('doc_end_offset','?') }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if r.shadow_attack.anomalies %}{{ anomaly_table(r.shadow_attack.anomalies) | safe }}{% endif %}
+  {% else %}
+  <div class="info-box info-neutral">
+    <span class="info-icon">&#8505;</span>
+    <div>{{ t('no_sig') }}</div>
+  </div>
+  {% endif %}
+  {% if r.signature.anomalies %}{{ anomaly_table(r.signature.anomalies) | safe }}{% endif %}
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════
+   UUID + TIMEZONE + AUTHOR (fließend)
+══════════════════════════════════════════════════════════════ #}
+<div>
+
+  {# UUID #}
+  {% set uuid_status = 'high' if r.uuid_decode.anomalies | selectattr('severity.value', 'equalto', 'HIGH') | list else ('medium' if r.uuid_decode.anomalies | selectattr('severity.value', 'equalto', 'MEDIUM') | list else 'ok') %}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_uuid') }}</span>
+    <span class="sec-status sec-status-{{ uuid_status }}">{% if uuid_status == 'ok' %}OK{% else %}{{ r.uuid_decode.anomalies | length }} FINDINGS{% endif %}</span>
+  </div>
+
+  <div class="explain">{{ t('uuid_expl') }}</div>
+
+  <div class="examples">
+    <div class="example-box ex-good"><span class="ex-label">&#10004;</span> {{ t('uuid_good') }}</div>
+    <div class="example-box ex-bad"><span class="ex-label">&#10008;</span> {{ t('uuid_bad') }}</div>
+  </div>
+
+  {% if r.uuid_decode.found_uuids %}
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_found_uuids') }}</td><td class="kv-v">{{ r.uuid_decode.found_uuids | length }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_decoded') }}</td><td class="kv-v">{{ r.uuid_decode.decoded | length }}</td></tr>
+  </table>
+  {% if r.uuid_decode.decoded %}
+  <table class="dt">
+    <thead><tr><th>{{ t('col_uuid') }}</th><th>{{ t('col_timestamp') }}</th><th>{{ t('col_delta') }}</th></tr></thead>
+    <tbody>
+    {% for dec in r.uuid_decode.decoded[:8] %}
+    <tr><td class="mono" style="font-size:7pt">{{ dec.get('uuid','?')[:28] }}...</td><td>{{ dec.get('timestamp_utc','?') | string | truncate(19, true, '') }}</td><td>{% if dec.get('delta_seconds') is not none %}{{ dec.get('delta_seconds') }}s{% else %}—{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {# Timeline #}
+  {% if timeline_svg %}
+  <div class="chart-container" style="margin-top:3mm">
+    {{ timeline_svg | safe }}
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="info-box info-neutral"><span class="info-icon">&#8505;</span><div>{{ t('no_uuid') }}</div></div>
+  {% endif %}
+  {% if r.uuid_decode.anomalies %}{{ anomaly_table(r.uuid_decode.anomalies) | safe }}{% endif %}
+
+  {# Timezone #}
+  {% if r.timezone %}
+  <hr class="divider">
+  {% set tz_status = 'high' if r.timezone.anomalies | selectattr('severity.value', 'equalto', 'HIGH') | list else ('medium' if r.timezone.anomalies | selectattr('severity.value', 'equalto', 'MEDIUM') | list else 'ok') %}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_timezone') }}</span>
+    <span class="sec-status sec-status-{{ tz_status }}">{% if tz_status == 'ok' %}OK{% else %}FINDINGS{% endif %}</span>
+  </div>
+  <div class="explain">{{ t('tz_expl') }}</div>
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_region_hint') }}</td><td class="kv-v">{{ r.timezone.region_hint or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_tz_consistent') }}</td><td class="kv-v">{{ t('yes') if r.timezone.offset_consistent else t('no') }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_unique_offsets') }}</td><td class="kv-v">{{ r.timezone.unique_offsets | join(', ') if r.timezone.unique_offsets else '—' }}</td></tr>
+  </table>
+  {% if r.timezone.anomalies %}{{ anomaly_table(r.timezone.anomalies) | safe }}{% endif %}
+  {% endif %}
+
+  {# Author Artifacts #}
+  {% if r.author_artifacts %}
+  <hr class="divider">
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_author') }}</span>
+  </div>
+  <div class="explain">{{ t('author_expl') }}</div>
+  {% set aa = r.author_artifacts %}
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_font_prefixes') }}</td><td class="kv-v">{{ aa.font_prefixes | length }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_artifacts') }}</td><td class="kv-v">{{ aa.all_artifacts | length }}</td></tr>
+  </table>
+  {% if aa.font_prefixes %}
+  <table class="dt">
+    <thead><tr><th>Prefix</th><th>{{ t('lbl_version') }}</th><th>Source</th></tr></thead>
+    <tbody>
+    {% for fp in aa.font_prefixes[:12] %}
+    <tr><td class="mono">{{ fp.get('prefix','?') }}</td><td>{{ fp.get('office_version','—') }}</td><td>{{ fp.get('source','—') }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if aa.anomalies %}{{ anomaly_table(aa.anomalies) | safe }}{% endif %}
+  {% endif %}
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════
+   ENCRYPTION + INCREMENTAL + JAVASCRIPT (fließend)
+══════════════════════════════════════════════════════════════ #}
+<div>
+
+  {# Encryption #}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_encryption') }}</span>
+    <span class="sec-status sec-status-{% if r.encryption.anomalies %}high{% else %}ok{% endif %}">{% if r.encryption.anomalies %}{{ r.encryption.anomalies | length }} FINDINGS{% else %}OK{% endif %}</span>
+  </div>
+  <div class="explain">{{ t('enc_expl') }}</div>
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_encrypted') }}</td><td class="kv-v">{{ t('yes') if r.encryption.is_encrypted else t('no') }}</td></tr>
+    {% if r.encryption.is_encrypted %}
+    <tr><td class="kv-k">{{ t('lbl_enc_method') }}</td><td class="kv-v">{{ r.encryption.algorithm or '—' }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_key_length') }}</td><td class="kv-v">{{ r.encryption.key_length_bits or '—' }}</td></tr>
+    {% endif %}
+  </table>
+  {% if r.encryption.anomalies %}{{ anomaly_table(r.encryption.anomalies) | safe }}{% endif %}
+
+  <hr class="divider">
+
+  {# Incremental Updates #}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_incremental') }}</span>
+    <span class="sec-status sec-status-{% if r.incremental_updates.anomalies %}medium{% else %}ok{% endif %}">{% if r.incremental_updates.anomalies %}{{ r.incremental_updates.anomalies | length }}{% else %}OK{% endif %}</span>
+  </div>
+  <div class="explain">{{ t('incr_expl') }}</div>
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_update_count') }}</td><td class="kv-v">{{ r.incremental_updates.revision_count }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_has_incremental') }}</td><td class="kv-v">{{ t('yes') if r.incremental_updates.revision_count > 1 else t('no') }}</td></tr>
+  </table>
+  {% if r.incremental_updates.anomalies %}{{ anomaly_table(r.incremental_updates.anomalies) | safe }}{% endif %}
+
+  <hr class="divider">
+
+  {# JavaScript #}
+  {% set js_status = 'high' if r.javascript.anomalies | selectattr('severity.value', 'equalto', 'HIGH') | list else ('medium' if r.javascript.anomalies else 'ok') %}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_javascript') }}</span>
+    <span class="sec-status sec-status-{{ js_status }}">{% if js_status == 'ok' %}OK{% else %}{{ r.javascript.anomalies | length }} FINDINGS{% endif %}</span>
+  </div>
+  <div class="explain">{{ t('js_expl') }}</div>
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_js_count') }}</td><td class="kv-v">{{ t('yes') if r.javascript.has_javascript else t('no') }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_js_actions') }}</td><td class="kv-v">{{ r.javascript.found_actions | length }}</td></tr>
+  </table>
+  {% if r.javascript.js_snippets %}
+  <div class="subsec">{{ t('lbl_js_snippets') }}</div>
+  {% for s in r.javascript.js_snippets[:4] %}
+  <div class="code-block">{{ (s.get('code', s) if s is mapping else s)[:300] }}</div>
+  {% endfor %}
+  {% endif %}
+  {% if r.javascript.anomalies %}{{ anomaly_table(r.javascript.anomalies) | safe }}{% endif %}
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════
+   EMBEDDED FILES + OBJECT STREAMS + RESIDUAL
+   (kein erzwungener Seitenumbruch — fließt nach vorheriger Sektion)
+══════════════════════════════════════════════════════════════ #}
+<div>
+
+  {# Embedded Files #}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_embedded') }}</span>
+  </div>
+  <div class="explain">{{ t('emb_expl') }}</div>
+
+  {% if r.embedded_files.embedded_files %}
+  <table class="dt">
+    <thead><tr><th>{{ t('name_col') }}</th><th>{{ t('type_col') }}</th><th>{{ t('size_col') }}</th></tr></thead>
+    <tbody>
+    {% for f in r.embedded_files.embedded_files[:15] %}
+    <tr><td>{{ f.get('name','?') }}</td><td class="mono">{{ f.get('mime_type','?') }}</td><td>{{ f.get('size','?') }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="info-box info-ok"><span class="info-icon">&#10004;</span><div>{{ t('no_embedded') }}</div></div>
+  {% endif %}
+  {% if r.embedded_files.anomalies %}{{ anomaly_table(r.embedded_files.anomalies) | safe }}{% endif %}
+
+  {# Object Streams #}
+  {% if r.object_streams %}
+  <hr class="divider">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_objstreams') }}</span></div>
+  <div class="explain">{{ t('obj_expl') }}</div>
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_objstream_count') }}</td><td class="kv-v">{{ r.object_streams.obj_stream_count }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_compressed_objs') }}</td><td class="kv-v">{{ r.object_streams.obj_streams | length }}</td></tr>
+  </table>
+  {% if r.object_streams.anomalies %}{{ anomaly_table(r.object_streams.anomalies) | safe }}{% endif %}
+  {% endif %}
+
+  {# Residual Objects #}
+  {% if r.residual_objects %}
+  <hr class="divider">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_residual') }}</span></div>
+  <div class="explain">{{ t('res_expl') }}</div>
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_residual_count') }}</td><td class="kv-v">{{ r.residual_objects.orphaned_count }}</td></tr>
+  </table>
+  {% if r.residual_objects.anomalies %}{{ anomaly_table(r.residual_objects.anomalies) | safe }}{% endif %}
+  {% endif %}
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════
+   IMAGES & ELA — mit eingebetteten Beweisbildern!
+══════════════════════════════════════════════════════════════ #}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">{{ t('sec_images') | upper }}</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+
+  {% set img_status = 'high' if r.jpeg_analyzer.anomalies | selectattr('severity.value', 'equalto', 'HIGH') | list else ('medium' if r.jpeg_analyzer.anomalies else 'ok') %}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_images') }}</span>
+    <span class="sec-status sec-status-{{ img_status }}">{% if img_status == 'ok' %}OK{% else %}{{ r.jpeg_analyzer.anomalies | length }} FINDINGS{% endif %}</span>
+  </div>
+
+  <div class="explain">{{ t('img_expl') }}</div>
+
+  <div class="examples">
+    <div class="example-box ex-good"><span class="ex-label">&#10004;</span> {{ t('img_good') }}</div>
+    <div class="example-box ex-bad"><span class="ex-label">&#10008;</span> {{ t('img_bad') }}</div>
+  </div>
+
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_image_count') }}</td><td class="kv-v">{{ r.jpeg_analyzer.analyzed | length }}</td></tr>
+    {% if r.quant_fingerprint %}
+    <tr><td class="kv-k">{{ t('lbl_quant_tables') }}</td><td class="kv-v">{{ r.quant_fingerprint.images_checked }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_multi_source') }}</td><td class="kv-v">{{ t('yes') if r.quant_fingerprint.ghostscript_detected else t('no') }}</td></tr>
+    {% endif %}
+  </table>
+
+  {% if r.jpeg_analyzer.anomalies %}{{ anomaly_table(r.jpeg_analyzer.anomalies) | safe }}{% endif %}
+
+  {# ELA Analysis with embedded images #}
+  {% if r.ela and r.ela.results %}
+  <hr class="divider">
+  <div class="subsec">{{ t('lbl_ela_results') }}</div>
+
+  <table class="dt">
+    <thead><tr><th>{{ t('col_ela_img') }}</th><th>{{ t('col_ela_mean') }}</th><th>{{ t('col_ela_max') }}</th><th>{{ t('col_ela_hot') }}</th><th>{{ t('col_ela_susp') }}</th></tr></thead>
+    <tbody>
+    {% for e in r.ela.results[:10] %}
+    <tr>
+      <td>{{ e.get('image_index', '?') }}</td>
+      <td>{{ "%.1f" | format(e.get('ela', {}).get('mean_ela', 0)) }}</td>
+      <td>{{ e.get('ela', {}).get('max_ela', 0) }}</td>
+      <td>{{ e.get('ela', {}).get('hot_region_count', 0) }}</td>
+      <td><span class="sev {% if e.get('ela', {}).get('is_suspicious') %}sev-HIGH{% else %}sev-INFO{% endif %}">{% if e.get('ela', {}).get('is_suspicious') %}{{ t('yes') }}{% else %}{{ t('no') }}{% endif %}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {# Embedded ELA preview images #}
+  {% for e in r.ela.results[:6] %}
+  {% if e.get('ela', {}).get('ela_preview') %}
+  <div class="evidence-row no-break">
+    {% if e.get('original_preview') %}
+    <div class="evidence-cell">
+      <img src="{{ e.original_preview }}" alt="Original">
+      <div class="evidence-caption">Original (Image {{ e.get('image_index', '?') }})</div>
+    </div>
+    {% endif %}
+    <div class="evidence-cell">
+      <img src="{{ e.ela.ela_preview }}" alt="ELA">
+      <div class="evidence-caption">ELA — {% if e.get('ela', {}).get('is_suspicious') %}&#9888; {{ t('col_ela_susp') }}{% else %}&#10004; OK{% endif %} (Mean: {{ "%.1f" | format(e.get('ela', {}).get('mean_ela', 0)) }})</div>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% elif not r.ela %}
+  <div class="info-box info-neutral"><span class="info-icon">&#8505;</span><div>{{ t('no_ela') }}</div></div>
+  {% endif %}
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════
+   IOC + HIDDEN TEXT + YELLOW DOTS
+══════════════════════════════════════════════════════════════ #}
+{% if r.ioc or r.hidden_text or r.yellow_dots %}
+<div>
+
+  {# IOC #}
+  {% if r.ioc %}
+  {% set ioc_status = 'high' if r.ioc.anomalies | selectattr('severity.value', 'equalto', 'HIGH') | list else ('medium' if r.ioc.anomalies else 'ok') %}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_ioc') }}</span>
+    <span class="sec-status sec-status-{{ ioc_status }}">{% if ioc_status == 'ok' %}OK{% else %}ALERT{% endif %}</span>
+  </div>
+  <div class="explain">{{ t('ioc_expl') }}</div>
+  <table class="kv">
+    <tr><td class="kv-k">{{ t('lbl_total_iocs') }}</td><td class="kv-v">{{ r.ioc.total_count }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_urls') }}</td><td class="kv-v">{{ r.ioc.urls | length }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_ips') }}</td><td class="kv-v">{{ r.ioc.ips | length }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_emails_ioc') }}</td><td class="kv-v">{{ r.ioc.emails | length }}</td></tr>
+    <tr><td class="kv-k">{{ t('lbl_domains') }}</td><td class="kv-v">{{ r.ioc.domains | length }}</td></tr>
+  </table>
+  {% if r.ioc.suspicious_iocs %}
+  <div class="info-box info-danger"><span class="info-icon">&#9888;</span><div>{{ t('suspicious_iocs_warn') }}</div></div>
+  {% for s in r.ioc.suspicious_iocs[:10] %}
+  <div class="code-block" style="border-left-color:#f59e0b">{{ s.get('value','?') }} — {{ s.get('reason','?') }}</div>
+  {% endfor %}
+  {% endif %}
+  {% if r.ioc.anomalies %}{{ anomaly_table(r.ioc.anomalies) | safe }}{% endif %}
+  {% endif %}
+
+  {# Hidden Text #}
+  {% if r.hidden_text %}
+  <hr class="divider">
+  {% set ht_status = 'high' if r.hidden_text.anomalies else 'ok' %}
+  <div class="sec-header">
+    <span class="sec-title">{{ t('sec_hidden_text') }}</span>
+    <span class="sec-status sec-status-{{ ht_status }}">{% if ht_status == 'ok' %}{{ t('ht_clean') }}{% else %}&#9888; ALERT{% endif %}</span>
+  </div>
+  <div class="explain">{{ t('ht_expl') }}</div>
+  {% if r.hidden_text.hidden_blocks %}
+  <div class="info-box info-danger"><span class="info-icon">&#9888;</span><div>{{ t('ht_warning') }}</div></div>
+  <table class="dt">
+    <thead><tr><th>{{ t('col_ht_page') }}</th><th>{{ t('col_ht_reason') }}</th><th>{{ t('col_ht_text') }}</th></tr></thead>
+    <tbody>
+    {% for h in r.hidden_text.hidden_blocks[:15] %}
+    <tr><td>{{ h.get('page','?') }}</td><td>{{ h.get('reason','?') }}</td><td class="mono" style="font-size:7pt">{{ h.get('text','')[:80] }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="info-box info-ok"><span class="info-icon">&#10004;</span><div>{{ t('ht_clean') }}</div></div>
+  {% endif %}
+  {% if r.hidden_text.anomalies %}{{ anomaly_table(r.hidden_text.anomalies) | safe }}{% endif %}
+  {% endif %}
+
+  {# Yellow Dots #}
+  {% if r.yellow_dots %}
+  <hr class="divider">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_yellow_dots') }}</span></div>
+  <div class="explain">{{ t('yd_expl') }}</div>
+  {% if r.yellow_dots.dots_found %}
+  <div class="info-box info-warning"><span class="info-icon">&#9888;</span><div>{{ t('yd_warning') }}</div></div>
+  {% else %}
+  <div class="info-box info-ok"><span class="info-icon">&#10004;</span><div>{{ t('no_yd') }}</div></div>
+  {% endif %}
+  {% if r.yellow_dots.anomalies %}{{ anomaly_table(r.yellow_dots.anomalies) | safe }}{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+
+{# ══════════════════════════════════════════════════════════════
+   PHASE 5 — ADVANCED FORENSICS
+══════════════════════════════════════════════════════════════ #}
+
+{# Stream Decompression + XRef Validation + Content Stream #}
+{% if r.stream_decomp or r.xref_validation or r.content_stream %}
+<div>
+  {% if r.stream_decomp %}
+  <div class="sec-header"><span class="sec-title">{{ t('sec_stream_decomp') }}</span>
+    <span class="sec-status sec-status-{% if r.stream_decomp.anomalies %}high{% else %}ok{% endif %}">{{ r.stream_decomp.exploit_indicators | length }} Exploits</span>
+  </div>
+  <div class="explain">{{ t('stream_expl') }}</div>
+  <table class="kv-table">
+    <tr><td>{{ t('lbl_total_streams') }}</td><td>{{ r.stream_decomp.total_streams }}</td></tr>
+    <tr><td>{{ t('lbl_decompressed') }}</td><td>{{ r.stream_decomp.decompressed }}</td></tr>
+    <tr><td>{{ t('lbl_decomp_failed') }}</td><td>{{ r.stream_decomp.failed }}</td></tr>
+    <tr><td>{{ t('lbl_filters_found') }}</td><td class="mono">{{ r.stream_decomp.filters_found | join(', ') }}</td></tr>
+  </table>
+  {% if r.stream_decomp.anomalies %}{{ anomaly_table(r.stream_decomp.anomalies) | safe }}{% endif %}
+  {% endif %}
+
+  {% if r.xref_validation %}
+  <hr class="divider">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_xref') }}</span></div>
+  <div class="explain">{{ t('xref_expl') }}</div>
+  <table class="kv-table">
+    <tr><td>{{ t('lbl_xref_type') }}</td><td class="mono">{{ r.xref_validation.xref_type }}</td></tr>
+    <tr><td>{{ t('lbl_xref_entries') }}</td><td>{{ r.xref_validation.total_entries }}</td></tr>
+    <tr><td>{{ t('lbl_subsections') }}</td><td>{{ r.xref_validation.subsection_count }}</td></tr>
+    <tr><td>{{ t('lbl_free_chain') }}</td><td>{% if r.xref_validation.free_chain_valid %}<span style="color:#10b981"></span>{% else %}<span style="color:#ef4444"></span>{% endif %}</td></tr>
+  </table>
+  {% if r.xref_validation.anomalies %}{{ anomaly_table(r.xref_validation.anomalies) | safe }}{% endif %}
+  {% endif %}
+
+  {% if r.content_stream %}
+  <hr class="divider">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_content_stream') }}</span></div>
+  <div class="explain">{{ t('cs_expl') }}</div>
+  <table class="kv-table">
+    <tr><td>{{ t('lbl_pages_checked') }}</td><td>{{ r.content_stream.pages_checked }}</td></tr>
+    <tr><td>{{ t('lbl_invalid_ops') }}</td><td>{{ r.content_stream.invalid_operators | length }}</td></tr>
+    <tr><td>{{ t('lbl_suspicious_patterns') }}</td><td>{{ r.content_stream.suspicious_patterns | length }}</td></tr>
+  </table>
+  {% if r.content_stream.anomalies %}{{ anomaly_table(r.content_stream.anomalies) | safe }}{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{# Deep JPEG + Redaction + OCG #}
+{% if r.deep_jpeg or r.redaction or r.ocg_layers %}
+<div>
+  {% if r.deep_jpeg and r.deep_jpeg.images_analyzed > 0 %}
+  <div class="sec-header"><span class="sec-title">{{ t('sec_deep_jpeg') }}</span>
+    <span class="sec-status sec-status-{% if r.deep_jpeg.anomalies %}high{% else %}ok{% endif %}">{{ r.deep_jpeg.images_analyzed }} Bilder</span>
+  </div>
+  <div class="explain">{{ t('deep_jpeg_expl') }}</div>
+  {% for img in r.deep_jpeg.results[:5] %}
+  <div style="background:#1a1f35;border-radius:3mm;padding:3mm;margin:2mm 0">
+    <p style="font-weight:600;color:#e2e8f0;font-size:8.5pt;margin:0 0 2mm">{{ img.filename }}</p>
+    <table class="kv-table" style="margin:0">
+      {% if img.dct_analysis %}<tr><td>{{ t('lbl_dct_analysis') }}</td><td>{% if img.dct_analysis.detected %}<span class="sev sev-HIGH">Erkannt</span>{% else %}<span style="color:#10b981">OK</span>{% endif %}</td></tr>{% endif %}
+      {% if img.thumbnail_check %}<tr><td>{{ t('lbl_thumbnail') }}</td><td>{% if img.thumbnail_check.mismatch %}<span class="sev sev-HIGH">Mismatch</span>{% elif img.thumbnail_check.has_thumbnail %}OK{% else %}—{% endif %}</td></tr>{% endif %}
+      {% if img.ghost_detection %}<tr><td>{{ t('lbl_jpeg_ghost') }}</td><td>{% if img.ghost_detection.ghost_detected %}<span class="sev sev-MEDIUM">Q{{ img.ghost_detection.estimated_original_quality }}</span>{% else %}—{% endif %}</td></tr>{% endif %}
+      {% if img.prnu %}<tr><td>{{ t('lbl_prnu') }}</td><td class="mono" style="font-size:6.5pt">{{ img.prnu.prnu_hash | default('—') }}</td></tr>{% endif %}
+    </table>
+  </div>
+  {% endfor %}
+  {% if r.deep_jpeg.anomalies %}{{ anomaly_table(r.deep_jpeg.anomalies) | safe }}{% endif %}
+  {% endif %}
+
+  {% if r.redaction %}
+  <hr class="divider">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_redaction') }}</span>
+    {% if r.redaction.insecure_redactions %}<span class="sec-status sec-status-high">{{ r.redaction.insecure_redactions }} unsicher</span>{% endif %}
+  </div>
+  <div class="explain">{{ t('redaction_expl') }}</div>
+  {% if r.redaction.redactions_found == 0 %}
+  <div class="info-box info-ok"><span class="info-icon">&#10004;</span><div>{{ t('redact_none') }}</div></div>
+  {% else %}
+  <table class="kv-table">
+    <tr><td>{{ t('lbl_redactions_found') }}</td><td>{{ r.redaction.redactions_found }}</td></tr>
+    <tr><td>{{ t('lbl_secure') }}</td><td>{{ r.redaction.secure_redactions }}</td></tr>
+    <tr><td>{{ t('lbl_insecure') }}</td><td>{% if r.redaction.insecure_redactions %}<span class="sev sev-HIGH">{{ r.redaction.insecure_redactions }}</span>{% else %}0{% endif %}</td></tr>
+  </table>
+  {% endif %}
+  {% if r.redaction.anomalies %}{{ anomaly_table(r.redaction.anomalies) | safe }}{% endif %}
+  {% endif %}
+
+  {% if r.ocg_layers %}
+  <hr class="divider">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_ocg') }}</span></div>
+  <div class="explain">{{ t('ocg_expl') }}</div>
+  {% if r.ocg_layers.layer_count == 0 %}
+  <div class="info-box info-ok"><span class="info-icon">&#10004;</span><div>{{ t('ocg_none') }}</div></div>
+  {% else %}
+  <table class="kv-table">
+    <tr><td>{{ t('lbl_layer_count') }}</td><td>{{ r.ocg_layers.layer_count }}</td></tr>
+    <tr><td>{{ t('lbl_hidden_layers') }}</td><td>{% if r.ocg_layers.hidden_layers %}<span class="sev sev-HIGH">{{ r.ocg_layers.hidden_layers | length }}</span>{% else %}0{% endif %}</td></tr>
+  </table>
+  {% endif %}
+  {% if r.ocg_layers.anomalies %}{{ anomaly_table(r.ocg_layers.anomalies) | safe }}{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{# Incremental Diff + Fuzzy Hash #}
+{% if r.incremental_diff or r.fuzzy_hash %}
+<div>
+  {% if r.incremental_diff and r.incremental_diff.revision_count > 1 %}
+  <div class="sec-header"><span class="sec-title">{{ t('sec_inc_diff') }}</span>
+    <span class="sec-status sec-status-{% if r.incremental_diff.anomalies %}high{% else %}ok{% endif %}">{{ r.incremental_diff.revision_count }} Rev.</span>
+  </div>
+  <div class="explain">{{ t('inc_diff_expl') }}</div>
+  {% for d in r.incremental_diff.diffs[:5] %}
+  <div style="background:#1a1f35;border-radius:3mm;padding:3mm;margin:2mm 0">
+    <p style="font-weight:600;color:#3b82f6;font-size:8.5pt;margin:0 0 2mm">{{ t('lbl_revision') }} {{ d.revision }}</p>
+    <table class="kv-table" style="margin:0">
+      <tr><td>{{ t('lbl_added') }}</td><td>{{ d.added_count }}</td></tr>
+      <tr><td>{{ t('lbl_modified') }}</td><td>{{ d.modified_count }}</td></tr>
+      <tr><td>{{ t('lbl_removed') }}</td><td>{{ d.removed_count }}</td></tr>
+      <tr><td>{{ t('lbl_rev_size') }}</td><td>{{ '{:,}'.format(d.revision_size_bytes) }} Bytes</td></tr>
+    </table>
+  </div>
+  {% endfor %}
+  {% if r.incremental_diff.anomalies %}{{ anomaly_table(r.incremental_diff.anomalies) | safe }}{% endif %}
+  {% endif %}
+
+  {% if r.fuzzy_hash %}
+  <hr class="divider">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_fuzzy_hash') }}</span></div>
+  <div class="explain">{{ t('fuzzy_expl') }}</div>
+  <table class="kv-table">
+    <tr><td>{{ t('lbl_ssdeep') }}</td><td class="mono" style="font-size:6.5pt;word-break:break-all">{{ r.fuzzy_hash.ssdeep_hash or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_tlsh') }}</td><td class="mono" style="font-size:6.5pt;word-break:break-all">{{ r.fuzzy_hash.tlsh_hash or '—' }}</td></tr>
+  </table>
+  {% endif %}
+</div>
+{% endif %}
+
+{# Cross-Analyzer Intelligence #}
+{% if r.cross_analyzer %}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">{{ t('sec_cross_analyzer') | upper }}</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+  <div class="sec-header"><span class="sec-title">{{ t('sec_cross_analyzer') }}</span>
+    <span class="sec-status sec-status-{% if r.cross_analyzer.manipulation_score > 60 %}high{% elif r.cross_analyzer.manipulation_score > 30 %}medium{% else %}ok{% endif %}">Score: {{ r.cross_analyzer.manipulation_score }}/100</span>
+  </div>
+  <div class="explain">{{ t('cross_expl') }}</div>
+
+  <div style="text-align:center;margin:4mm 0">
+    <div style="display:inline-block;background:{% if r.cross_analyzer.manipulation_score > 60 %}#dc263420{% elif r.cross_analyzer.manipulation_score > 30 %}#f59e0b20{% else %}#10b98120{% endif %};border-radius:4mm;padding:4mm 8mm">
+      <span style="font-size:24pt;font-weight:800;color:{% if r.cross_analyzer.manipulation_score > 60 %}#ef4444{% elif r.cross_analyzer.manipulation_score > 30 %}#f59e0b{% else %}#10b981{% endif %}">{{ r.cross_analyzer.manipulation_score }}</span>
+      <span style="font-size:10pt;color:#94a3b8">/100</span>
+      <br><span style="font-size:7pt;color:#64748b">{{ t('lbl_manipulation_score') }}</span>
+    </div>
+  </div>
+
+  {% if r.cross_analyzer.correlations %}
+  <p style="font-weight:700;color:#e2e8f0;font-size:9pt;margin:5mm 0 2mm">{{ t('lbl_correlations') }} ({{ r.cross_analyzer.correlations | length }})</p>
+  {% for c in r.cross_analyzer.correlations[:6] %}
+  <div class="info-box info-{% if c.severity.value == 'HIGH' %}warning{% else %}note{% endif %}" style="margin:2mm 0">
+    <span class="info-icon">{% if c.severity.value == 'HIGH' %}&#9888;{% else %}&#8505;{% endif %}</span>
+    <div>
+      <strong>{{ c.title }}</strong><br>
+      <span style="font-size:7pt;color:#94a3b8">Analyzer: {{ c.analyzers_involved | join(' + ') }}</span><br>
+      {% for e in c.evidence[:3] %}<span style="font-size:7pt">&#8226; {{ e }}</span><br>{% endfor %}
+      <span style="font-size:7.5pt;color:#f59e0b">&#8594; {{ c.conclusion }}</span>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if r.cross_analyzer.timeline_reconstruction %}
+  <p style="font-weight:700;color:#e2e8f0;font-size:9pt;margin:5mm 0 2mm">{{ t('lbl_timeline') }}</p>
+  <table class="detail-table">
+    <thead><tr><th>Zeitpunkt</th><th>{{ t('source') }}</th><th>Detail</th></tr></thead>
+    <tbody>
+    {% for ev in r.cross_analyzer.timeline_reconstruction[:10] %}
+    <tr><td class="mono" style="font-size:7pt">{{ ev.timestamp }}</td><td>{{ ev.source }}</td><td style="font-size:7pt">{{ ev.detail[:80] }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if r.cross_analyzer.creator_profile %}
+  <p style="font-weight:700;color:#e2e8f0;font-size:9pt;margin:5mm 0 2mm">{{ t('lbl_creator_profile') }}</p>
+  <table class="kv-table">
+    {% if r.cross_analyzer.creator_profile.software %}<tr><td>Software</td><td>{{ r.cross_analyzer.creator_profile.software.identified_tool | default('—') }} {{ r.cross_analyzer.creator_profile.software.version | default('') }}</td></tr>{% endif %}
+    {% if r.cross_analyzer.creator_profile.author_info %}<tr><td>Autor</td><td>{{ r.cross_analyzer.creator_profile.author_info.name | default('—') }}</td></tr>{% endif %}
+    {% if r.cross_analyzer.creator_profile.system_hints %}<tr><td>Region</td><td>{{ r.cross_analyzer.creator_profile.system_hints.region | default('—') }}</td></tr>{% endif %}
+    <tr><td>{{ t('lbl_confidence') }}</td><td>{{ r.cross_analyzer.creator_profile.confidence | default('—') | upper }}</td></tr>
+  </table>
+  {% endif %}
+
+  {% if r.cross_analyzer.anomalies %}{{ anomaly_table(r.cross_analyzer.anomalies) | safe }}{% endif %}
+</div>
+{% endif %}
+
+{# Chain of Custody #}
+{% if r.chain_of_custody %}
+<div>
+  <div class="sec-header"><span class="sec-title">{{ t('sec_coc') }}</span></div>
+  <div class="explain">{{ t('coc_expl') }}</div>
+  <table class="kv-table">
+    <tr><td>{{ t('lbl_examiner') }}</td><td>{{ r.chain_of_custody.examiner_name or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_case_number') }}</td><td>{{ r.chain_of_custody.case_number or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_exam_start') }}</td><td class="mono">{{ r.chain_of_custody.examination_start or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_exam_end') }}</td><td class="mono">{{ r.chain_of_custody.examination_end or '—' }}</td></tr>
+  </table>
+  {% if r.chain_of_custody.evidence_integrity %}
+  <div class="info-box info-{% if r.chain_of_custody.evidence_integrity.integrity_intact %}ok{% else %}warning{% endif %}" style="margin:3mm 0">
+    <span class="info-icon">{% if r.chain_of_custody.evidence_integrity.integrity_intact %}&#10004;{% else %}&#9888;{% endif %}</span>
+    <div><strong>{{ t('lbl_evidence_integrity') }}:</strong> {% if r.chain_of_custody.evidence_integrity.integrity_intact %}{{ t('lbl_integrity_ok') }}{% else %}{{ t('lbl_integrity_fail') }}{% endif %}</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+
+{# ══════════════════════════════════════════════════════════════
+   PHASE 6 — EXTENDED FORENSICS
+══════════════════════════════════════════════════════════════ #}
+
+{# YARA #}
+{% if r.yara %}
+<div class="pb">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_yara') }}</span></div>
+  <table class="kv"><tbody>
+    <tr><td>{{ t('lbl_yara_rules') }}</td><td>{{ r.yara.rules_loaded }}</td></tr>
+    <tr><td>{{ t('lbl_yara_matches') }}</td><td>{{ r.yara.total_matches }}</td></tr>
+    <tr><td>{{ t('lbl_yara_critical') }}</td><td class="{% if r.yara.critical_matches %}text-high{% endif %}">{{ r.yara.critical_matches }}</td></tr>
+  </tbody></table>
+  {% if r.yara.matches %}
+  <table class="detail-table"><thead><tr>
+    <th>{{ t('col_yara_rule') }}</th><th>{{ t('col_yara_severity') }}</th><th>{{ t('col_yara_category') }}</th><th>{{ t('col_yara_desc') }}</th>
+  </tr></thead><tbody>
+  {% for m in r.yara.matches %}
+    <tr><td class="mono">{{ m.rule }}</td><td class="text-{{ m.severity|lower }}">{{ m.severity }}</td><td>{{ m.category }}</td><td>{{ m.description }}</td></tr>
+  {% endfor %}
+  </tbody></table>
+  {% endif %}
+</div>
+{% endif %}
+
+{# Font Forensics #}
+{% if r.font_forensics %}
+<div class="pb">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_font_forensics') }}</span></div>
+  <table class="kv"><tbody>
+    <tr><td>{{ t('lbl_ff_total') }}</td><td>{{ r.font_forensics.total_fonts }}</td></tr>
+    <tr><td>{{ t('lbl_ff_embedded') }}</td><td>{{ r.font_forensics.embedded_count }}</td></tr>
+    <tr><td>{{ t('lbl_ff_subset') }}</td><td>{{ r.font_forensics.subset_count }}</td></tr>
+    <tr><td>{{ t('lbl_ff_system') }}</td><td>{{ r.font_forensics.system_fonts }}</td></tr>
+    <tr><td>{{ t('lbl_ff_creators') }}</td><td>{{ r.font_forensics.font_creators|join(', ') }}</td></tr>
+  </tbody></table>
+</div>
+{% endif %}
+
+{# PDF/A & PDF/X #}
+{% if r.pdfa_compliance %}
+<div class="pb">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_pdfa_compliance') }}</span></div>
+  <table class="kv"><tbody>
+    <tr><td>{{ t('lbl_pdfa_claimed') }}</td><td>{% if r.pdfa_compliance.pdfa_claimed %}PDF/A-{{ r.pdfa_compliance.pdfa_version }}{{ r.pdfa_compliance.pdfa_conformance }}{% else %}—{% endif %}</td></tr>
+    <tr><td>{{ t('lbl_pdfx_claimed') }}</td><td>{% if r.pdfa_compliance.pdfx_claimed %}{{ r.pdfa_compliance.pdfx_version }}{% else %}—{% endif %}</td></tr>
+    <tr><td>{{ t('lbl_pdfa_issues') }}</td><td>{{ r.pdfa_compliance.compliance_issues|length }}</td></tr>
+    <tr><td>{{ t('lbl_pdfa_passes') }}</td><td>{{ r.pdfa_compliance.passes|length }}</td></tr>
+  </tbody></table>
+</div>
+{% endif %}
+
+{# Linearization #}
+{% if r.linearization %}
+<div class="pb">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_linearization') }}</span></div>
+  <table class="kv"><tbody>
+    <tr><td>{{ t('lbl_lin_linearized') }}</td><td>{% if r.linearization.is_linearized %}&#10004;{% else %}—{% endif %}</td></tr>
+    {% if r.linearization.is_linearized %}
+    <tr><td>{{ t('lbl_lin_version') }}</td><td>{{ r.linearization.linearization_version or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_lin_mismatch') }}</td><td class="{% if r.linearization.length_mismatch %}text-high{% endif %}">{% if r.linearization.length_mismatch %}&#9888; JA{% else %}&#10004;{% endif %}</td></tr>
+    {% endif %}
+  </tbody></table>
+</div>
+{% endif %}
+
+{# ICC Profiles #}
+{% if r.icc_profiles %}
+<div class="pb">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_icc_profiles') }}</span></div>
+  <table class="kv"><tbody>
+    <tr><td>{{ t('lbl_icc_count') }}</td><td>{{ r.icc_profiles.profiles_found }}</td></tr>
+    <tr><td>{{ t('lbl_icc_colorspaces') }}</td><td>{{ r.icc_profiles.color_spaces_used|join(', ') }}</td></tr>
+  </tbody></table>
+  {% if r.icc_profiles.profiles %}
+  <table class="detail-table"><thead><tr>
+    <th>{{ t('col_icc_name') }}</th><th>{{ t('col_icc_class') }}</th><th>{{ t('col_icc_platform') }}</th><th>{{ t('col_icc_source') }}</th>
+  </tr></thead><tbody>
+  {% for p in r.icc_profiles.profiles %}
+    <tr><td>{{ p.known_profile or '—' }}</td><td>{{ p.device_class or '—' }}</td><td>{{ p.platform or '—' }}</td><td>{{ p.source or '—' }}</td></tr>
+  {% endfor %}
+  </tbody></table>
+  {% endif %}
+</div>
+{% endif %}
+
+{# Visual Render #}
+{% if r.visual_render %}
+<div class="pb">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_visual_render') }}</span></div>
+  <table class="kv"><tbody>
+    <tr><td>{{ t('lbl_vr_pages') }}</td><td>{{ r.visual_render.pages_rendered }}</td></tr>
+    <tr><td>{{ t('lbl_vr_blank') }}</td><td>{{ r.visual_render.blank_pages|length }}</td></tr>
+    <tr><td>{{ t('lbl_vr_duplicates') }}</td><td>{{ r.visual_render.duplicate_pages|length }}</td></tr>
+  </tbody></table>
+</div>
+{% endif %}
+
+{# Object Graph #}
+{% if r.object_graph %}
+<div class="pb">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_object_graph') }}</span></div>
+  <table class="kv"><tbody>
+    <tr><td>{{ t('lbl_og_objects') }}</td><td>{{ r.object_graph.total_objects }}</td></tr>
+    <tr><td>{{ t('lbl_og_max_depth') }}</td><td>{{ r.object_graph.max_depth }}</td></tr>
+  </tbody></table>
+</div>
+{% endif %}
+
+{# Cross-Doc Fingerprint #}
+{% if r.cross_doc_fingerprint %}
+<div class="pb">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_cross_doc_fp') }}</span></div>
+  <table class="kv"><tbody>
+    <tr><td>{{ t('lbl_cdf_struct') }}</td><td class="mono">{{ r.cross_doc_fingerprint.structural_hash or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_cdf_font') }}</td><td class="mono">{{ r.cross_doc_fingerprint.font_hash or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_cdf_meta') }}</td><td class="mono">{{ r.cross_doc_fingerprint.metadata_hash or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_cdf_style') }}</td><td class="mono">{{ r.cross_doc_fingerprint.style_hash or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_cdf_content') }}</td><td class="mono">{{ r.cross_doc_fingerprint.content_hash or '—' }}</td></tr>
+  </tbody></table>
+</div>
+{% endif %}
+
+{# Printer Forensics #}
+{% if r.printer_forensics %}
+<div class="pb">
+  <div class="sec-header"><span class="sec-title">{{ t('sec_printer_forensics') }}</span></div>
+  <table class="kv"><tbody>
+    <tr><td>{{ t('lbl_pf_scanned') }}</td><td>{% if r.printer_forensics.is_scanned_document %}&#9888; JA{% else %}&#10004; Nein{% endif %}</td></tr>
+    <tr><td>{{ t('lbl_pf_confidence') }}</td><td>{{ (r.printer_forensics.scan_confidence * 100)|round }}%</td></tr>
+    <tr><td>{{ t('lbl_pf_printer_type') }}</td><td>{{ r.printer_forensics.printer_type or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_pf_dpi') }}</td><td>{{ r.printer_forensics.dpi_detected or '—' }}</td></tr>
+    <tr><td>{{ t('lbl_pf_halftone') }}</td><td>{% if r.printer_forensics.halftone_detected %}&#9888; Erkannt{% else %}—{% endif %}</td></tr>
+    <tr><td>{{ t('lbl_pf_banding') }}</td><td>{% if r.printer_forensics.banding_detected %}&#9888; Erkannt{% else %}—{% endif %}</td></tr>
+    <tr><td>{{ t('lbl_pf_images') }}</td><td>{{ r.printer_forensics.images_analyzed }}</td></tr>
+  </tbody></table>
+</div>
+{% endif %}
+
+
+{# ══════════════════════════════════════════════════════════════
+   VOLLSTÄNDIGE ANOMALIE-ÜBERSICHT (Anhang)
+══════════════════════════════════════════════════════════════ #}
+{% if r.all_anomalies %}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">{{ t('complete_anomalies') | upper }}</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+
+  <div class="sec-header">
+    <span class="sec-title">{{ t('complete_anomalies') }}</span>
+    <span class="sec-status sec-status-{% if r.anomaly_count_high %}high{% elif r.anomaly_count_medium %}medium{% else %}low{% endif %}">{{ r.all_anomalies | length }} {{ t('total') }}</span>
+  </div>
+
+  <table class="anom-table">
+    <thead><tr>
+      <th style="width:14mm">{{ t('severity_col') }}</th>
+      <th style="width:30mm">{{ t('category_col') }}</th>
+      <th>{{ t('message_col') }}</th>
+    </tr></thead>
+    <tbody>
+    {% for a in r.all_anomalies %}
+    <tr>
+      <td><span class="sev sev-{{ a.severity.value }}">{{ a.severity.value }}</span></td>
+      <td class="mono" style="font-size:7pt">{{ a.category }}</td>
+      <td style="font-size:7.5pt">{{ a.message }}{% if a.detail %}<br><span style="color:#64748b; font-size:6.5pt">{{ a.detail[:250] }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+
+</body>
+</html>

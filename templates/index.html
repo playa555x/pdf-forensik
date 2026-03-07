@@ -1,0 +1,808 @@
+{% extends "base.html" %}
+{% block title %}PDF Forensik{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrap" id="dashboardWrap">
+
+  <!-- ======= LEFT COLUMN ======= -->
+  <div class="dashboard-left">
+
+    <!-- Upload -->
+    <div class="card upload-card" id="uploadCard">
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-icon">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round"/><polyline points="17 8 12 3 7 8" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        <div class="upload-text" data-i18n="upload_drop">PDF hier ablegen oder</div>
+        <label class="btn btn-primary upload-btn">
+          <span data-i18n="upload_btn">Datei ausw&auml;hlen</span>
+          <input type="file" id="fileInput" accept=".pdf,.docx,.xlsx,.pptx,.doc,.xls,.ppt,.odt,.ods,.odp,.jpg,.jpeg,.png" multiple hidden>
+        </label>
+        <div class="upload-hint" data-i18n="upload_hint">Maximal 200 MB &middot; PDF, DOCX, XLSX, PPTX, DOC, ODT</div>
+      </div>
+
+      <!-- Batch Upload Queue -->
+      <div id="batchQueue" style="display:none">
+        <div class="batch-queue">
+          <div style="padding:8px 12px;font-size:0.78rem;color:var(--muted);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span data-i18n="batch_queue">Batch-Warteschlange</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-primary btn-sm" id="btnStartBatch" data-i18n="batch_start">Alle analysieren</button>
+              <button class="btn btn-sm" id="btnClearBatch" data-i18n="batch_clear">Zur&uuml;cksetzen</button>
+            </div>
+          </div>
+          <div id="batchQueueList"></div>
+        </div>
+        <div id="batchResultsContainer" style="display:none;padding:0 4px"></div>
+      </div>
+
+      <div class="progress-container" id="progressContainer" style="display:none">
+        <div class="progress-label" id="progressLabel" data-i18n="upload_progress">Analysiere&hellip;</div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-steps" id="progressSteps">
+          <span class="step" id="step-hash" data-i18n="step_hash">HASH</span>
+          <span class="step" id="step-meta" data-i18n="step_meta">META</span>
+          <span class="step" id="step-img" data-i18n="step_img">IMG</span>
+          <span class="step" id="step-uuid" data-i18n="step_uuid">UUID</span>
+          <span class="step" id="step-sig" data-i18n="step_sig">SIG</span>
+          <span class="step" id="step-fp" data-i18n="step_fp">FP</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div class="alert alert-error" id="errorAlert" style="display:none">
+      <span class="alert-icon">&#x26A0;</span>
+      <span id="errorMessage"></span>
+    </div>
+
+    <!-- Result Container -->
+    <div id="resultContainer" style="display:none">
+
+      <!-- Risk Banner -->
+      <div class="risk-banner" id="riskBanner">
+        <div class="risk-badge" id="riskBadge"></div>
+        <div class="risk-info">
+          <div class="risk-filename" id="riskFilename"></div>
+          <div class="risk-counts" id="riskCounts"></div>
+        </div>
+        <div class="risk-actions">
+          <button class="btn btn-secondary" id="btnDownloadReport" data-i18n="btn_download_report">PDF-Bericht</button>
+          <button class="btn btn-ghost" id="btnAddToCompare" data-i18n="btn_add_compare">Vergleich</button>
+          <button class="btn btn-ai" id="btnAiReview" onclick="requestAiReview()" data-i18n="btn_ai_review">🤖 KI-Gutachten</button>
+        </div>
+      </div>
+
+      <!-- KI-REVIEW PANEL -->
+      <div id="aiReviewPanel" style="display:none" class="card ai-review-card">
+        <div class="ai-review-header">
+          <span class="ai-review-title">&#x1F916; KI-Forensikgutachten &mdash; DeepSeek V3</span>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('aiReviewPanel').style.display='none'">&#x2715;</button>
+        </div>
+        <div id="aiReviewLoading" style="display:none" class="ai-review-loading">
+          <div class="ai-spinner"></div>
+          <span>DeepSeek V3 analysiert&hellip; (kann bis zu 2 Min. dauern)</span>
+        </div>
+        <div id="aiReviewContent" style="display:none">
+
+          <!-- Verdict + Scores -->
+          <div class="ai-verdict-row">
+            <span class="ai-verdict-label">Verdict:</span>
+            <span id="aiVerdict" class="ai-verdict-badge"></span>
+            <span class="ai-confidence-label" data-i18n="ai_confidence">Konfidenz:</span>
+            <span id="aiConfidence" class="ai-confidence-value"></span>
+            <span class="ai-confidence-label" data-i18n="ai_legit">Legitimit&auml;t:</span>
+            <span id="aiLegitScore" class="ai-confidence-value"></span>
+          </div>
+
+          <!-- Laien-Erklärung (prominent, ganz oben) -->
+          <div id="aiLaienBox" class="ai-laien-box" style="display:none">
+            <div class="ai-laien-label" data-i18n="ai_laien_title">&#x1F4AC; In einfachen Worten</div>
+            <div id="aiLaienText" class="ai-laien-text"></div>
+          </div>
+
+          <!-- Verhaltensempfehlung (direkt nach Laien-Box) -->
+          <div id="aiVerhaltensBox" class="ai-verhalten-box" style="display:none">
+            <div class="ai-verhalten-label" data-i18n="ai_behavior_short">Was tun?</div>
+            <div id="aiVerhaltensBox2" class="ai-verhalten-text"></div>
+          </div>
+
+          <!-- Technische Details aufklappbar -->
+          <details class="ai-expert-details" id="aiExpertDetails">
+            <summary data-i18n="ai_expert_details">Expertenmodus — Alle technischen Details</summary>
+            <div class="ai-expert-inner">
+
+          <!-- Zusammenfassung -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_summary">Zusammenfassung</div>
+            <div id="aiZusammenfassung" class="ai-text"></div>
+          </div>
+
+          <!-- Was wurde gefunden -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_found">&#x1F50D; Was wurde gefunden</div>
+            <div id="aiWasGefunden" class="ai-text"></div>
+          </div>
+
+          <!-- Was lässt sich erkennen -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_recognize">&#x1F4A1; Was l&auml;sst sich erkennen</div>
+            <div id="aiWasErkennen" class="ai-text"></div>
+          </div>
+
+          <!-- Was lässt sich schließen -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_conclude">&#x1F9E0; Forensische Schlussfolgerungen</div>
+            <div id="aiWasSchliessen" class="ai-text"></div>
+          </div>
+
+          <!-- Hauptbefunde -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_findings">Hauptbefunde</div>
+            <div id="aiHauptbefunde"></div>
+          </div>
+
+          <!-- Manipulationshinweise -->
+          <div id="aiManipulationSection" class="ai-section" style="display:none">
+            <div class="ai-section-title ai-warn" data-i18n="ai_manipulation">&#x26A0; Manipulationshinweise</div>
+            <div id="aiManipulation"></div>
+          </div>
+
+          <!-- Verhaltensempfehlung -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_behavior">&#x1F6E1; Verhaltensempfehlung</div>
+            <div id="aiVerhaltensempfehlung" class="ai-text"></div>
+          </div>
+
+          <!-- Dokumenteninhalt-Bewertung -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_doc_assessment">&#x1F4C4; Dokumenteninhalt-Bewertung</div>
+            <div id="aiDokumentBewertung"></div>
+          </div>
+
+          <!-- Weitere Tests -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_further_tests">&#x1F9EA; Vorgeschlagene weitere Tests</div>
+            <div id="aiWeitereTests"></div>
+          </div>
+
+          <!-- Erweiterungsvorschläge -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_extensions">&#x1F4A1; Erweiterungsvorschl&auml;ge</div>
+            <div id="aiErweiterungen"></div>
+          </div>
+
+          <!-- Empfehlungen -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_recommendations">Empfehlungen</div>
+            <ul id="aiEmpfehlungen" class="ai-list"></ul>
+          </div>
+
+          <!-- Risikoerklärung -->
+          <div class="ai-section">
+            <div class="ai-section-title" data-i18n="ai_risk_explanation">Risikoerkl&auml;rung</div>
+            <div id="aiRisikoErklaerung" class="ai-text"></div>
+          </div>
+
+          <!-- Fazit -->
+          <div class="ai-section">
+            <div class="ai-section-title ai-fazit" data-i18n="ai_conclusion">&#x2705; Fazit</div>
+            <div id="aiFazit" class="ai-text ai-fazit-text"></div>
+          </div>
+
+          <!-- Technische Details (inline, innerhalb des Experten-Bereichs) -->
+          <details class="ai-details">
+            <summary data-i18n="ai_technical_details">Technische Details</summary>
+            <div id="aiTechnisch" class="ai-text ai-technical"></div>
+          </details>
+
+            </div><!-- /.ai-expert-inner -->
+          </details><!-- /#aiExpertDetails -->
+
+          <div class="ai-footer" data-i18n="ai_model_prefix">Modell: <span id="aiModelName"></span></div>
+        </div>
+      </div>
+
+      <!-- CHART DASHBOARD -->
+      <div id="chartDashboard" class="chart-dashboard" style="display:none">
+        <div class="chart-grid">
+          <div class="chart-card chart-card-sm">
+            <div class="chart-card-title" data-i18n="chart_risk_gauge">Risiko-Level</div>
+            <div id="chartRiskGauge" class="chart-area"></div>
+          </div>
+          <div class="chart-card chart-card-sm">
+            <div class="chart-card-title" data-i18n="chart_severity">Befund-Verteilung</div>
+            <div class="chart-area"><canvas id="chartSeverityDonut"></canvas></div>
+            <div class="chart-legend-inline">
+              <span class="cl-item"><span class="cl-dot" style="background:var(--high)"></span>HIGH</span>
+              <span class="cl-item"><span class="cl-dot" style="background:var(--medium)"></span>MEDIUM</span>
+              <span class="cl-item"><span class="cl-dot" style="background:var(--low)"></span>LOW</span>
+            </div>
+          </div>
+          <div class="chart-card chart-card-md">
+            <div class="chart-card-title" data-i18n="chart_radar">Analyzer-Radar</div>
+            <div class="chart-area chart-area-tall"><canvas id="chartAnalyzerRadar"></canvas></div>
+          </div>
+          <div class="chart-card chart-card-sm">
+            <div class="chart-card-title" data-i18n="chart_phase_summary">Phasen-Ergebnis</div>
+            <div class="chart-area"><canvas id="chartPhaseSummary"></canvas></div>
+          </div>
+          <div class="chart-card chart-card-lg">
+            <div class="chart-card-title" data-i18n="chart_categories">Befunde nach Kategorie</div>
+            <div class="chart-area chart-area-bar"><canvas id="chartCategoryBar"></canvas></div>
+          </div>
+          <div class="chart-card chart-card-sm">
+            <div class="chart-card-title" data-i18n="chart_security_score">Sicherheits-Score</div>
+            <div id="chartSecurityScore" class="chart-area"></div>
+          </div>
+          <div class="chart-card chart-card-sm">
+            <div class="chart-card-title" data-i18n="chart_file_structure">Dateistruktur</div>
+            <div class="chart-area"><canvas id="chartFileStructure"></canvas></div>
+          </div>
+          <div class="chart-card chart-card-sm">
+            <div class="chart-card-title" data-i18n="chart_analyzer_coverage">Analyzer-Abdeckung</div>
+            <div class="chart-area"><canvas id="chartAnalyzerCoverage"></canvas></div>
+          </div>
+          <div class="chart-card chart-card-full">
+            <div class="chart-card-title" data-i18n="chart_timeline">Dokument-Timeline</div>
+            <div id="chartTimeline" class="chart-area"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Virus Scan -->
+      <div class="card" id="virusScanCard">
+        <div class="card-header collapsible" data-target="virusScanBody">
+          <h2 data-i18n="sec_virusscan"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Virus-Scan</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body" id="virusScanBody">
+          <div id="virusScanContent"></div>
+        </div>
+      </div>
+
+      <!-- Anomalies -->
+      <div class="card" id="anomaliesCard" style="display:none">
+        <div class="card-header collapsible" data-target="anomaliesBody">
+          <h2><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span> <span data-i18n="sec_anomalies">Anomalien</span> <span class="badge-count" id="anomalyTotalBadge"></span></h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body" id="anomaliesBody">
+          <div id="anomaliesList"></div>
+        </div>
+      </div>
+
+      <!-- Hashes -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="hashesBody">
+          <h2 data-i18n="sec_hashes"><span class="sec-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></span> Kryptografische Hashes</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="hashesBody">
+          <div id="hashesContent"></div>
+        </div>
+      </div>
+
+      <!-- Metadata -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="metaBody">
+          <h2 data-i18n="sec_metadata"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span> PDF-Metadaten</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="metaBody">
+          <div id="metaContent"></div>
+        </div>
+      </div>
+
+      <!-- Software Fingerprint -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="softwareBody">
+          <h2 data-i18n="sec_software"><span class="sec-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span> Software-Fingerprint</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="softwareBody">
+          <div id="softwareContent"></div>
+        </div>
+      </div>
+
+      <!-- UUID -->
+      <div class="card" id="uuidCard">
+        <div class="card-header collapsible" data-target="uuidBody">
+          <h2 data-i18n="sec_uuid"><span class="sec-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span> UUID-Analyse</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="uuidBody">
+          <div id="uuidContent"></div>
+        </div>
+      </div>
+
+      <!-- Signatures -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="sigBody">
+          <h2 data-i18n="sec_signature"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></span> Digitale Signaturen</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="sigBody">
+          <div id="sigContent"></div>
+        </div>
+      </div>
+
+      <!-- Page Geometry -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="geoBody">
+          <h2 data-i18n="sec_geometry"><span class="sec-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></span> Seitengeometrie</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="geoBody">
+          <div id="geoContent"></div>
+        </div>
+      </div>
+
+      <!-- Images -->
+      <div class="card" id="imagesCard">
+        <div class="card-header collapsible" data-target="imagesBody">
+          <h2 data-i18n="sec_images"><span class="sec-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span> Eingebettete Bilder</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="imagesBody">
+          <div id="imagesContent"></div>
+          <div style="margin-top:8px;padding:0 4px">
+            <button class="btn btn-sm" id="btnCrossMatchQuant" onclick="runCrossMatchQuant(currentAnalysisId)" data-i18n="btn_cross_match_quant">Quant-Cross-Match</button>
+            <div id="crossMatchQuantResult" style="margin-top:6px;font-size:0.75rem"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Encryption -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="encBody">
+          <h2 data-i18n="sec_encryption"><span class="sec-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span> Verschl&uuml;sselung</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="encBody">
+          <div id="encContent"></div>
+        </div>
+      </div>
+
+      <!-- Incremental Updates -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="incBody">
+          <h2 data-i18n="sec_incremental"><span class="sec-icon"><svg viewBox="0 0 24 24"><polyline points="14 2 14 8 20 8"/><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></span> Revisionen / Incremental Updates</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="incBody">
+          <div id="incContent"></div>
+        </div>
+      </div>
+
+      <!-- JavaScript & Actions -->
+      <div class="card" id="jsCard">
+        <div class="card-header collapsible" data-target="jsBody">
+          <h2 data-i18n="sec_javascript"><span class="sec-icon"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span> JavaScript &amp; Actions</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="jsBody">
+          <div id="jsContent"></div>
+        </div>
+      </div>
+
+      <!-- Embedded Files -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="efBody">
+          <h2 data-i18n="sec_embedded"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></span> Eingebettete Dateien &amp; Annotations</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="efBody">
+          <div id="efContent"></div>
+        </div>
+      </div>
+
+      <!-- OOXML -->
+      <div class="card" id="ooxmlCard" style="display:none">
+        <div class="card-header collapsible" data-target="ooxmlBody">
+          <h2 data-i18n="sec_ooxml"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span> OOXML-Forensik</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body" id="ooxmlBody">
+          <div id="ooxmlContent"></div>
+        </div>
+      </div>
+
+      <!-- OLE -->
+      <div class="card" id="oleCard" style="display:none">
+        <div class="card-header collapsible" data-target="oleBody">
+          <h2 data-i18n="sec_ole"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span> OLE2-Forensik</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body" id="oleBody">
+          <div id="oleContent"></div>
+        </div>
+      </div>
+
+      <!-- Timezone -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="timezoneBody">
+          <h2 data-i18n="sec_timezone"><span class="sec-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></span> Timezone-Analyse</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="timezoneBody">
+          <div id="timezoneContent"></div>
+        </div>
+      </div>
+
+      <!-- Author Artifacts -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="authorBody">
+          <h2 data-i18n="sec_author_artifacts"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Autoren-Artefakte</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="authorBody">
+          <div id="authorContent"></div>
+          <div style="margin-top:8px;padding:0 4px">
+            <button class="btn btn-sm" id="btnCrossMatchFonts" onclick="runCrossMatchFonts(currentAnalysisId)" data-i18n="btn_cross_match_fonts">Font-Cross-Match</button>
+            <div id="crossMatchFontsResult" style="margin-top:6px;font-size:0.75rem"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ELA & Copy-Move -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="elaBody">
+          <h2 data-i18n="sec_ela"><span class="sec-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/></svg></span> ELA &amp; Copy-Move</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="elaBody">
+          <div id="elaContent"></div>
+        </div>
+      </div>
+
+      <!-- Object Streams -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="objstreamsBody">
+          <h2 data-i18n="sec_object_streams"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg></span> Object Streams</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="objstreamsBody">
+          <div id="objstreamsContent"></div>
+        </div>
+      </div>
+
+      <!-- Residual Objects -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="residualBody">
+          <h2 data-i18n="sec_residual"><span class="sec-icon"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></span> Verwaiste Objekte</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="residualBody">
+          <div id="residualContent"></div>
+        </div>
+      </div>
+
+      <!-- Image Forensics (Phase 3) -->
+      <div class="card" id="imageForensicsCard" style="display:none">
+        <div class="card-header collapsible" data-target="imageForensicsBody">
+          <h2 data-i18n="sec_image_forensics"><span class="sec-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span> Bild-Forensik</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body" id="imageForensicsBody">
+          <div id="imageForensicsContent"></div>
+        </div>
+      </div>
+
+      <!-- Steganography (Phase 3) -->
+      <div class="card" id="steganographyCard" style="display:none">
+        <div class="card-header collapsible" data-target="steganographyBody">
+          <h2 data-i18n="sec_steganography"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span> Steganographie-Analyse</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body" id="steganographyBody">
+          <div id="steganographyContent"></div>
+        </div>
+      </div>
+
+      <!-- Shadow Attack -->
+      <div class="card">
+        <div class="card-header collapsible" data-target="shadowBody">
+          <h2 data-i18n="sec_shadow_attack"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span> Shadow-Attack</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="shadowBody">
+          <div id="shadowContent"></div>
+        </div>
+      </div>
+
+      <!-- IOC Extraction (Phase 4) -->
+      <div class="card" id="iocCard">
+        <div class="card-header collapsible" data-target="iocBody">
+          <h2 data-i18n="sec_ioc"><span class="sec-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></span> IOC-Extraktion</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="iocBody">
+          <div id="iocContent"></div>
+        </div>
+      </div>
+
+      <!-- Hidden Text (Phase 4) -->
+      <div class="card" id="hiddenTextCard">
+        <div class="card-header collapsible" data-target="hiddenTextBody">
+          <h2 data-i18n="sec_hidden_text"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></span> Hidden-Text-Analyse</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="hiddenTextBody">
+          <div id="hiddenTextContent"></div>
+        </div>
+      </div>
+
+      <!-- Yellow Dots (Phase 4) -->
+      <div class="card" id="yellowDotsCard">
+        <div class="card-header collapsible" data-target="yellowDotsBody">
+          <h2 data-i18n="sec_yellow_dots"><span class="sec-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="var(--medium)" opacity="0.3"/><circle cx="12" cy="12" r="5"/></svg></span> Yellow Dots / MIC</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="yellowDotsBody">
+          <div id="yellowDotsContent"></div>
+        </div>
+      </div>
+
+      <!-- Phase 5 -->
+      <div class="card" id="streamDecompCard" style="display:none">
+        <div class="card-header collapsible" data-target="streamDecompBody">
+          <h2 data-i18n="sec_stream_decomp"><span class="sec-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span> Stream-Dekompressions-Analyse</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="streamDecompBody">
+          <div id="streamDecompContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="xrefValidationCard" style="display:none">
+        <div class="card-header collapsible" data-target="xrefValidationBody">
+          <h2 data-i18n="sec_xref_validation"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span> XRef-Deep-Validierung</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="xrefValidationBody">
+          <div id="xrefValidationContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="deepJpegCard" style="display:none">
+        <div class="card-header collapsible" data-target="deepJpegBody">
+          <h2 data-i18n="sec_deep_jpeg"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span> Deep JPEG-Forensik</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="deepJpegBody">
+          <div id="deepJpegContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="redactionCard" style="display:none">
+        <div class="card-header collapsible" data-target="redactionBody">
+          <h2 data-i18n="sec_redaction"><span class="sec-icon"><svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span> Schw&auml;rzungs-Analyse</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="redactionBody">
+          <div id="redactionContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="ocgLayersCard" style="display:none">
+        <div class="card-header collapsible" data-target="ocgLayersBody">
+          <h2 data-i18n="sec_ocg_layers"><span class="sec-icon"><svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span> OCG-Ebenen</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="ocgLayersBody">
+          <div id="ocgLayersContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="contentStreamCard" style="display:none">
+        <div class="card-header collapsible" data-target="contentStreamBody">
+          <h2 data-i18n="sec_content_stream"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span> Content-Stream-Validierung</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="contentStreamBody">
+          <div id="contentStreamContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="incDiffCard" style="display:none">
+        <div class="card-header collapsible" data-target="incDiffBody">
+          <h2 data-i18n="sec_inc_diff"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><line x1="4" y1="20" x2="21" y2="3"/><path d="M21 16v5h-5"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg></span> Inkrementelles Update-Diffing</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="incDiffBody">
+          <div id="incDiffContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="fuzzyHashCard" style="display:none">
+        <div class="card-header collapsible" data-target="fuzzyHashBody">
+          <h2 data-i18n="sec_fuzzy_hash"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></span> Fuzzy Hashing</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="fuzzyHashBody">
+          <div id="fuzzyHashContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="crossAnalyzerCard" style="display:none">
+        <div class="card-header collapsible" data-target="crossAnalyzerBody">
+          <h2 data-i18n="sec_cross_analyzer"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span> Cross-Analyzer Intelligence</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="crossAnalyzerBody">
+          <div id="crossAnalyzerContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="chainOfCustodyCard" style="display:none">
+        <div class="card-header collapsible" data-target="chainOfCustodyBody">
+          <h2 data-i18n="sec_chain_of_custody"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></span> Chain of Custody</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="chainOfCustodyBody">
+          <div id="chainOfCustodyContent"></div>
+        </div>
+      </div>
+
+      <!-- Phase 6 — Extended Forensics -->
+      <div class="card" id="yaraCard" style="display:none">
+        <div class="card-header collapsible" data-target="yaraBody">
+          <h2 data-i18n="sec_yara"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> YARA Malware-Scan</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="yaraBody">
+          <div id="yaraContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="fontForensicsCard" style="display:none">
+        <div class="card-header collapsible" data-target="fontForensicsBody">
+          <h2 data-i18n="sec_font_forensics"><span class="sec-icon"><svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg></span> Font-Forensik</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="fontForensicsBody">
+          <div id="fontForensicsContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="pdfaComplianceCard" style="display:none">
+        <div class="card-header collapsible" data-target="pdfaComplianceBody">
+          <h2 data-i18n="sec_pdfa_compliance"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span> PDF/A &amp; PDF/X Compliance</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="pdfaComplianceBody">
+          <div id="pdfaComplianceContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="linearizationCard" style="display:none">
+        <div class="card-header collapsible" data-target="linearizationBody">
+          <h2 data-i18n="sec_linearization"><span class="sec-icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span> Linearisierung</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="linearizationBody">
+          <div id="linearizationContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="iccProfilesCard" style="display:none">
+        <div class="card-header collapsible" data-target="iccProfilesBody">
+          <h2 data-i18n="sec_icc_profiles"><span class="sec-icon"><svg viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="4" fill="none"/><circle cx="17.5" cy="17.5" r="4" fill="none"/><circle cx="8.5" cy="17.5" r="4" fill="none"/></svg></span> ICC-Farbprofile</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="iccProfilesBody">
+          <div id="iccProfilesContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="visualRenderCard" style="display:none">
+        <div class="card-header collapsible" data-target="visualRenderBody">
+          <h2 data-i18n="sec_visual_render"><span class="sec-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span> Visueller Render</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="visualRenderBody">
+          <div id="visualRenderContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="objectGraphCard" style="display:none">
+        <div class="card-header collapsible" data-target="objectGraphBody">
+          <h2 data-i18n="sec_object_graph"><span class="sec-icon"><svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 012 2v7"/><path d="M6 9v3a2 2 0 002 2h7"/></svg></span> PDF-Objekt-Graph</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="objectGraphBody">
+          <div id="objectGraphContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="crossDocFpCard" style="display:none">
+        <div class="card-header collapsible" data-target="crossDocFpBody">
+          <h2 data-i18n="sec_cross_doc_fp"><span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></span> Cross-Document Fingerprint</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="crossDocFpBody">
+          <div id="crossDocFpContent"></div>
+        </div>
+      </div>
+
+      <div class="card" id="printerForensicsCard" style="display:none">
+        <div class="card-header collapsible" data-target="printerForensicsBody">
+          <h2 data-i18n="sec_printer_forensics"><span class="sec-icon"><svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span> Drucker-Forensik</h2>
+          <span class="collapse-arrow">&#9660;</span>
+        </div>
+        <div class="card-body collapsed" id="printerForensicsBody">
+          <div id="printerForensicsContent"></div>
+        </div>
+      </div>
+
+    </div><!-- /resultContainer -->
+  </div><!-- /dashboard-left -->
+
+  <!-- ======= RIGHT COLUMN ======= -->
+  <div class="dashboard-right" id="dashboardRight">
+
+    <!-- Tabs -->
+    <div class="sidebar-tabs">
+      <div class="sidebar-tab active" data-tab="history">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span data-i18n="nav_verlauf">Verlauf</span>
+      </div>
+      <div class="sidebar-tab" data-tab="compare">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span data-i18n="nav_vergleich">Vergleich</span>
+      </div>
+    </div>
+
+    <!-- HISTORY PANEL -->
+    <div class="sidebar-panel active" id="panelHistory">
+      <div class="sidebar-search-row">
+        <input type="text" id="sidebarSearch" placeholder="" data-i18n-placeholder="hist_search_ph">
+      </div>
+      <div id="sidebarHistoryList">
+        <div class="loading-spinner"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- COMPARE PANEL -->
+    <div class="sidebar-panel" id="panelCompare">
+      <div class="sidebar-compare-wrap">
+        <div id="compareSlots" class="compare-slots"></div>
+        <div class="compare-actions">
+          <button class="btn btn-ghost btn-sm" id="btnAddSlot" style="display:none" data-i18n="cmp_add_slot">+ Dokument</button>
+          <button class="btn btn-primary btn-sm" id="btnRunCompare" disabled data-i18n="cmp_run">Vergleich</button>
+        </div>
+        <div id="compareResult" style="display:none; margin-top: 10px;"></div>
+      </div>
+    </div>
+
+  </div><!-- /dashboard-right -->
+</div><!-- /dashboard-wrap -->
+
+<!-- History-Picker Modal -->
+<div class="modal-overlay" id="pickerModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 data-i18n="cmp_pick_title">Analyse ausw&auml;hlen</h3>
+      <button class="modal-close" id="btnCloseModal">&times;</button>
+    </div>
+    <div class="modal-search">
+      <input type="text" id="pickerSearch" class="search-input"
+             data-i18n-placeholder="cmp_pick_search"
+             placeholder="">
+    </div>
+    <div class="modal-list" id="pickerList">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/charts.js?v=7.7"></script>
+<script src="/static/js/forensic-context.js?v=7.7"></script>
+<script src="/static/js/results.js?v=7.8"></script>
+<script src="/static/js/dashboard.js?v=7.7"></script>
+{% endblock %}

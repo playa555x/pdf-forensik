@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: pdf-forensik
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: VT_API_KEY
+        value: ""
+    disk:
+      name: data
+      mountPath: /app
+      sizeGB: 1

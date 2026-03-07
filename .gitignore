@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtuelle Umgebungen
+venv/
+.venv/
+env/
+.env/
+
+# Secrets
+.env
+.env.local
+*.env
+
+# Datenbank (lokal — auf Render wird eine neue erstellt)
+forensik.db
+
+# Upload-Verzeichnisse (werden zur Laufzeit neu erstellt)
+uploads/
+extracted_images/
+generated_reports/
+reports_out/
+
+# Windows
+Thumbs.db
+desktop.ini
+*.bat
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Playwright Browser-Cache
+/ms-playwright/
+
+# YARA
+*.yar.compiled

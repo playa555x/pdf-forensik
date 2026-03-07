@@ -1,0 +1,474 @@
+"""
+Analyse-Pipeline: Orchestriert alle 34+ Analyzer.
+"""
+from __future__ import annotations
+import uuid
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import List
+
+from models.schemas import (
+    AnalysisResult, Anomaly, AnomalySeverity, RiskLevel,
+    TimezoneResult, AuthorArtifactsResult, ELAResult,
+    ObjectStreamResult, ResidualObjectsResult, ShadowAttackResult,
+    IocResult, HiddenTextResult, YellowDotsResult,
+    StreamDecompResult, XRefValidationResult, DeepJpegResult,
+    RedactionResult, OCGLayerResult, ContentStreamResult,
+    IncrementalDiffResult, FuzzyHashResult, CrossAnalyzerResult,
+    ChainOfCustodyResult,
+    YaraResult, FontForensicsResult, PdfaComplianceResult,
+    LinearizationResult, IccProfileResult, VisualRenderResult,
+    ObjectGraphResult, CrossDocFingerprintResult, PrinterForensicsResult,
+)
+from analyzers.hashing import compute_hashes
+from analyzers.metadata import analyze_metadata
+from analyzers.uuid_decoder import analyze_uuids
+from analyzers.software_fingerprint import analyze_software_fingerprint
+from analyzers.signature_detector import analyze_signatures
+from analyzers.page_geometry import analyze_page_geometry
+from analyzers.page_labels import analyze_page_labels
+from analyzers.jpeg_extractor import extract_jpegs
+from analyzers.jpeg_analyzer import analyze_jpegs
+from analyzers.quant_fingerprint import analyze_quant_fingerprint
+from analyzers.encryption import analyze_encryption
+from analyzers.incremental_updates import analyze_incremental_updates
+from analyzers.javascript_analyzer import analyze_javascript
+from analyzers.embedded_files import analyze_embedded_files
+from analyzers.virus_scan import analyze_virus_scan
+from analyzers.timezone_analyzer import analyze_timezones
+from analyzers.author_artifacts import analyze_author_artifacts
+from analyzers.ela_analyzer import analyze_ela
+from analyzers.object_stream_analyzer import analyze_object_streams
+from analyzers.residual_objects import analyze_residual_objects
+from analyzers.shadow_attack_detector import analyze_shadow_attacks
+
+# Phase 5 — Advanced Forensics
+from analyzers.stream_decomp import analyze_stream_decompression
+from analyzers.xref_validator import analyze_xref_deep
+from analyzers.deep_jpeg import analyze_deep_jpeg
+from analyzers.redaction_analyzer import analyze_redactions
+from analyzers.ocg_layer_analyzer import analyze_ocg_layers
+from analyzers.content_stream_validator import analyze_content_streams
+from analyzers.incremental_differ import analyze_incremental_diff
+from analyzers.fuzzy_hasher import compute_fuzzy_hashes
+from analyzers.cross_analyzer import analyze_cross_correlations
+from analyzers.chain_of_custody import create_chain_of_custody
+
+# Phase 6 — Extended Forensics
+from analyzers.yara_scanner import analyze_yara
+from analyzers.font_forensics import analyze_fonts
+from analyzers.pdfa_validator import analyze_pdfa_pdfx
+from analyzers.linearization_analyzer import analyze_linearization
+from analyzers.icc_analyzer import analyze_icc_profiles
+from analyzers.visual_comparator import analyze_visual_render
+from analyzers.object_graph import analyze_object_graph
+from analyzers.cross_doc_fingerprint import create_document_fingerprint
+from analyzers.printer_forensics import analyze_printer_forensics
+
+
+# Vollständige Liste aller Analyzer-Namen (für Chain of Custody)
+ANALYZER_NAMES = [
+    "hashing", "metadata", "uuid_decoder", "software_fingerprint",
+    "signature_detector", "page_geometry", "page_labels",
+    "jpeg_extractor", "jpeg_analyzer", "quant_fingerprint",
+    "encryption", "incremental_updates", "javascript_analyzer",
+    "embedded_files", "virus_scan", "timezone_analyzer",
+    "author_artifacts", "ela_analyzer", "object_stream_analyzer",
+    "residual_objects", "shadow_attack_detector",
+    "ioc_extractor", "hidden_text_analyzer", "yellow_dots_detector",
+    # Phase 5
+    "stream_decomp", "xref_validator", "deep_jpeg",
+    "redaction_analyzer", "ocg_layer_analyzer", "content_stream_validator",
+    "incremental_differ", "fuzzy_hasher", "cross_analyzer",
+    "steg_analyzer",
+    # Phase 6
+    "yara_scanner", "font_forensics", "pdfa_validator",
+    "linearization_analyzer", "icc_analyzer", "visual_comparator",
+    "object_graph", "cross_doc_fingerprint", "printer_forensics",
+]
+
+
+def _compute_risk_level(anomalies: List[Anomaly]) -> RiskLevel:
+    high_count   = sum(1 for a in anomalies if a.severity == AnomalySeverity.HIGH)
+    medium_count = sum(1 for a in anomalies if a.severity == AnomalySeverity.MEDIUM)
+    if high_count > 0:
+        return RiskLevel.HIGH
+    if medium_count > 0:
+        return RiskLevel.MEDIUM
+    if anomalies:
+        return RiskLevel.LOW
+    return RiskLevel.CLEAN
+
+
+def run_pipeline(pdf_path: Path, original_filename: str) -> AnalysisResult:
+    analysis_id = str(uuid.uuid4())
+    analyzed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    # ================================================================
+    # Phase 1-4: Bestehende Analyzer
+    # ================================================================
+
+    # 1. Hashing
+    hashes = compute_hashes(pdf_path)
+
+    # 2. Metadaten
+    metadata = analyze_metadata(pdf_path)
+
+    # 3. UUID-Decoder
+    uuid_decode = analyze_uuids(pdf_path, metadata.creation_date_parsed)
+
+    # 4. Software-Fingerprint
+    software_fp = analyze_software_fingerprint(metadata.producer, metadata.creator)
+
+    # 5. Signaturen
+    signature = analyze_signatures(pdf_path)
+
+    # 6. Seitengeometrie
+    page_geometry = analyze_page_geometry(pdf_path)
+
+    # 7. PageLabels
+    page_labels = analyze_page_labels(pdf_path)
+
+    # 8. JPEG-Extraktion
+    jpeg_extractor = extract_jpegs(pdf_path, analysis_id)
+
+    # 9. JPEG-Analyse
+    jpeg_analyzer = analyze_jpegs(jpeg_extractor.images, analysis_id)
+
+    # 10. Quantisierungs-Fingerprint
+    quant_fp = analyze_quant_fingerprint(jpeg_extractor.images, analysis_id)
+
+    # 11. Encryption
+    encryption = analyze_encryption(pdf_path)
+
+    # 12. Incremental Updates
+    incremental = analyze_incremental_updates(pdf_path)
+
+    # 13. JavaScript / Actions
+    javascript = analyze_javascript(pdf_path)
+
+    # 14. Embedded Files + Annotations + Object Streams
+    embedded = analyze_embedded_files(pdf_path)
+
+    # 15. Virus-Scan (ClamAV + VirusTotal)
+    virus_scan = analyze_virus_scan(pdf_path, sha256=hashes.sha256)
+
+    # 16. Timezone-Analyse
+    _tz_raw = analyze_timezones(pdf_path)
+    timezone_result = TimezoneResult(
+        dates=_tz_raw["dates"],
+        region_hint=_tz_raw.get("region_hint"),
+        offset_consistent=_tz_raw.get("offset_consistent", True),
+        unique_offsets=_tz_raw.get("unique_offsets", []),
+        anomalies=_tz_raw.get("anomalies", []),
+    )
+
+    # 17. Author-Artifacts
+    _aa_raw = analyze_author_artifacts(pdf_path)
+    author_artifacts_result = AuthorArtifactsResult(
+        font_prefixes=_aa_raw.get("font_prefixes", []),
+        xmp_authors=_aa_raw.get("xmp_authors", []),
+        annotation_authors=_aa_raw.get("annotation_authors", []),
+        form_field_hints=_aa_raw.get("form_field_hints", []),
+        printer_name=_aa_raw.get("printer_name", []),
+        all_artifacts=_aa_raw.get("all_artifacts", []),
+        anomalies=_aa_raw.get("anomalies", []),
+    )
+
+    # 18. ELA (Error Level Analysis)
+    _ela_raw = analyze_ela(pdf_path)
+    ela_result = ELAResult(
+        available=_ela_raw.get("available", True),
+        images_checked=_ela_raw.get("images_checked", 0),
+        results=_ela_raw.get("results", []),
+        anomalies=_ela_raw.get("anomalies", []),
+    )
+
+    # 19. Object Stream Analysis
+    _os_raw = analyze_object_streams(pdf_path)
+    object_stream_result = ObjectStreamResult(
+        obj_stream_count=_os_raw.get("obj_stream_count", 0),
+        obj_streams=_os_raw.get("obj_streams", []),
+        xref_info=_os_raw.get("xref_info", {}),
+        duplicate_objs=_os_raw.get("duplicate_objs", []),
+        anomalies=_os_raw.get("anomalies", []),
+    )
+
+    # 20. Residual Objects
+    _ro_raw = analyze_residual_objects(pdf_path)
+    residual_result = ResidualObjectsResult(
+        orphaned_count=_ro_raw.get("orphaned_count", 0),
+        orphaned_objects=_ro_raw.get("orphaned_objects", []),
+        trailing_data=_ro_raw.get("trailing_data", {}),
+        eof_info=_ro_raw.get("eof_info", {}),
+        anomalies=_ro_raw.get("anomalies", []),
+    )
+
+    # 21. Shadow Attack Detection
+    _sa_raw = analyze_shadow_attacks(pdf_path)
+    shadow_result = ShadowAttackResult(
+        has_signature=_sa_raw.get("has_signature", False),
+        signature_count=_sa_raw.get("signature_count", 0),
+        shadow_analysis=_sa_raw.get("shadow_analysis", []),
+        isa_analysis=_sa_raw.get("isa_analysis", []),
+        wrapping_check=_sa_raw.get("wrapping_check", {}),
+        anomalies=_sa_raw.get("anomalies", []),
+    )
+
+    # 22. IOC Extraction
+    from analyzers.ioc_extractor import extract_iocs
+    ioc_result = extract_iocs(pdf_path)
+
+    # 23. Hidden Text Analysis
+    from analyzers.hidden_text_analyzer import analyze_hidden_text
+    hidden_text_result = analyze_hidden_text(pdf_path)
+
+    # 24. Yellow Dots / MIC Detection
+    from analyzers.yellow_dots_detector import detect_yellow_dots
+    yellow_dots_result = detect_yellow_dots(pdf_path)
+
+    # ================================================================
+    # Phase 5: Advanced Forensics
+    # ================================================================
+
+    # 25. Stream Decompression & Content Analysis
+    stream_decomp_result = analyze_stream_decompression(pdf_path)
+
+    # 26. XRef Deep Validation
+    xref_result = analyze_xref_deep(pdf_path)
+
+    # 27. Deep JPEG Forensics
+    # Sammle alle extrahierten Bild-Pfade
+    image_dir = Path("extracted_images") / analysis_id
+    image_paths = []
+    if image_dir.exists():
+        image_paths = sorted(image_dir.glob("*.jpg")) + sorted(image_dir.glob("*.jpeg"))
+    deep_jpeg_result = analyze_deep_jpeg(image_paths)
+
+    # 28. Redaction Analysis
+    redaction_result = analyze_redactions(pdf_path)
+
+    # 29. OCG Layer Extraction
+    ocg_result = analyze_ocg_layers(pdf_path)
+
+    # 30. Content Stream Operator Validation
+    content_stream_result = analyze_content_streams(pdf_path)
+
+    # 31. Incremental Update Diffing
+    inc_diff_result = analyze_incremental_diff(pdf_path)
+
+    # 32. Fuzzy Hashing (ssdeep + TLSH)
+    fuzzy_hash_result = compute_fuzzy_hashes(pdf_path)
+
+    # 33. Steganography (auf extrahierten Bildern)
+    steg_result = None
+    try:
+        from analyzers.steg_analyzer import analyze_steganography
+        from models.schemas import StegResult
+        if image_paths:
+            # Steg auf das erste/größte Bild anwenden
+            _steg_raw = analyze_steganography(image_paths[0])
+            steg_result = StegResult(
+                lsb_chi=_steg_raw.get("lsb_chi", {}),
+                rs_analysis=_steg_raw.get("rs_analysis", {}),
+                png_chunks=_steg_raw.get("png_chunks", {}),
+                jpeg_trailing=_steg_raw.get("jpeg_trailing", {}),
+                anomalies=_steg_raw.get("anomalies", []),
+            )
+    except Exception:
+        pass
+
+    # ================================================================
+    # Phase 6: Extended Forensics (jeweils mit try/except abgesichert)
+    # ================================================================
+
+    # 36. YARA Rule Scanning
+    try:
+        _yara_raw = analyze_yara(pdf_path)
+        yara_result = YaraResult(**{k: v for k, v in _yara_raw.items() if k != "error"})
+    except Exception as e:
+        print(f"[WARN] YARA-Analyzer fehlgeschlagen: {e}")
+        yara_result = YaraResult()
+
+    # 37. Font Forensics
+    try:
+        _font_raw = analyze_fonts(pdf_path)
+        font_forensics_result = FontForensicsResult(**{k: v for k, v in _font_raw.items() if k != "error"})
+    except Exception as e:
+        print(f"[WARN] Font-Forensik fehlgeschlagen: {e}")
+        font_forensics_result = FontForensicsResult()
+
+    # 38. PDF/A & PDF/X Compliance
+    try:
+        _pdfa_raw = analyze_pdfa_pdfx(pdf_path)
+        pdfa_result = PdfaComplianceResult(**{k: v for k, v in _pdfa_raw.items() if k != "error"})
+    except Exception as e:
+        print(f"[WARN] PDF/A-Validator fehlgeschlagen: {e}")
+        pdfa_result = PdfaComplianceResult()
+
+    # 39. Linearization Analysis
+    try:
+        _lin_raw = analyze_linearization(pdf_path)
+        linearization_result = LinearizationResult(**{k: v for k, v in _lin_raw.items() if k != "error"})
+    except Exception as e:
+        print(f"[WARN] Linearization-Analyzer fehlgeschlagen: {e}")
+        linearization_result = LinearizationResult()
+
+    # 40. ICC Color Profile Analysis
+    try:
+        _icc_raw = analyze_icc_profiles(pdf_path)
+        icc_result = IccProfileResult(**{k: v for k, v in _icc_raw.items() if k != "error"})
+    except Exception as e:
+        print(f"[WARN] ICC-Analyzer fehlgeschlagen: {e}")
+        icc_result = IccProfileResult()
+
+    # 41. Visual Render Comparison
+    try:
+        _vis_raw = analyze_visual_render(pdf_path)
+        visual_result = VisualRenderResult(**{k: v for k, v in _vis_raw.items() if k != "error"})
+    except Exception as e:
+        print(f"[WARN] Visual-Render fehlgeschlagen: {e}")
+        visual_result = VisualRenderResult()
+
+    # 42. Object Graph Visualization
+    try:
+        _graph_raw = analyze_object_graph(pdf_path)
+        object_graph_result = ObjectGraphResult(**{k: v for k, v in _graph_raw.items() if k != "error"})
+    except Exception as e:
+        print(f"[WARN] Object-Graph fehlgeschlagen: {e}")
+        object_graph_result = ObjectGraphResult()
+
+    # 43. Cross-Document Fingerprinting
+    try:
+        _fp_raw = create_document_fingerprint(pdf_path)
+        cross_doc_fp_result = CrossDocFingerprintResult(**{k: v for k, v in _fp_raw.items() if k != "error"})
+    except Exception as e:
+        print(f"[WARN] Cross-Doc-Fingerprint fehlgeschlagen: {e}")
+        cross_doc_fp_result = CrossDocFingerprintResult()
+
+    # 44. Printer Forensics
+    try:
+        _pf_raw = analyze_printer_forensics(pdf_path)
+        printer_result = PrinterForensicsResult(**{k: v for k, v in _pf_raw.items() if k != "error"})
+    except Exception as e:
+        print(f"[WARN] Printer-Forensik fehlgeschlagen: {e}")
+        printer_result = PrinterForensicsResult()
+
+    # ================================================================
+    # Anomalien aggregieren (Phase 1-4 + Phase 5 + Phase 6)
+    # ================================================================
+    all_anomalies: List[Anomaly] = []
+    for result in [
+        metadata, uuid_decode, software_fp, signature,
+        page_geometry, page_labels, jpeg_extractor, jpeg_analyzer,
+        quant_fp, encryption, incremental, javascript, embedded, virus_scan,
+        timezone_result, author_artifacts_result, ela_result,
+        object_stream_result, residual_result, shadow_result,
+        ioc_result, hidden_text_result, yellow_dots_result,
+        # Phase 5
+        stream_decomp_result, xref_result, deep_jpeg_result,
+        redaction_result, ocg_result, content_stream_result,
+        inc_diff_result, fuzzy_hash_result,
+        # Phase 6
+        yara_result, font_forensics_result, pdfa_result,
+        linearization_result, icc_result, visual_result,
+        object_graph_result, cross_doc_fp_result, printer_result,
+    ]:
+        all_anomalies.extend(result.anomalies)
+
+    # Steg-Anomalien
+    if steg_result:
+        all_anomalies.extend(steg_result.anomalies)
+
+    significant = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
+    risk_level   = _compute_risk_level(significant)
+
+    high_count   = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.HIGH)
+    medium_count = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.MEDIUM)
+    low_count    = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.LOW)
+
+    # Vorläufiges Ergebnis (ohne Cross-Analyzer und Chain of Custody)
+    analysis_result = AnalysisResult(
+        analysis_id=analysis_id,
+        filename=original_filename,
+        file_size_bytes=hashes.file_size_bytes,
+        analyzed_at=analyzed_at,
+        risk_level=risk_level,
+        anomaly_count_high=high_count,
+        anomaly_count_medium=medium_count,
+        anomaly_count_low=low_count,
+        all_anomalies=all_anomalies,
+        hashes=hashes,
+        metadata=metadata,
+        uuid_decode=uuid_decode,
+        software_fingerprint=software_fp,
+        signature=signature,
+        page_geometry=page_geometry,
+        page_labels=page_labels,
+        jpeg_extractor=jpeg_extractor,
+        jpeg_analyzer=jpeg_analyzer,
+        quant_fingerprint=quant_fp,
+        encryption=encryption,
+        incremental_updates=incremental,
+        javascript=javascript,
+        embedded_files=embedded,
+        virus_scan=virus_scan,
+        timezone=timezone_result,
+        author_artifacts=author_artifacts_result,
+        ela=ela_result,
+        object_streams=object_stream_result,
+        residual_objects=residual_result,
+        shadow_attack=shadow_result,
+        ioc=ioc_result,
+        hidden_text=hidden_text_result,
+        yellow_dots=yellow_dots_result,
+        # Phase 5
+        stream_decomp=stream_decomp_result,
+        xref_validation=xref_result,
+        deep_jpeg=deep_jpeg_result,
+        redaction=redaction_result,
+        ocg_layers=ocg_result,
+        content_stream=content_stream_result,
+        incremental_diff=inc_diff_result,
+        fuzzy_hash=fuzzy_hash_result,
+        steganography=steg_result,
+        # Phase 6
+        yara=yara_result,
+        font_forensics=font_forensics_result,
+        pdfa_compliance=pdfa_result,
+        linearization=linearization_result,
+        icc_profiles=icc_result,
+        visual_render=visual_result,
+        object_graph=object_graph_result,
+        cross_doc_fingerprint=cross_doc_fp_result,
+        printer_forensics=printer_result,
+    )
+
+    # ================================================================
+    # 34. Cross-Analyzer Intelligence (braucht das Gesamtergebnis)
+    # ================================================================
+    cross_result = analyze_cross_correlations(analysis_result)
+    all_anomalies.extend(cross_result.anomalies)
+    analysis_result.cross_analyzer = cross_result
+
+    # 35. Chain of Custody
+    coc_result = create_chain_of_custody(
+        pdf_path=pdf_path,
+        original_hash_sha256=hashes.sha256,
+        analysis_id=analysis_id,
+        analyzer_names=ANALYZER_NAMES,
+    )
+    analysis_result.chain_of_custody = coc_result
+
+    # Anomalie-Counts aktualisieren (nach Cross-Analyzer)
+    analysis_result.all_anomalies = all_anomalies
+    analysis_result.anomaly_count_high = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.HIGH)
+    analysis_result.anomaly_count_medium = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.MEDIUM)
+    analysis_result.anomaly_count_low = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.LOW)
+
+    # Risk-Level nochmal berechnen (mit Cross-Analyzer Anomalien)
+    significant = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
+    analysis_result.risk_level = _compute_risk_level(significant)
+
+    from analyzers.numpy_sanitizer import sanitize_result
+    return sanitize_result(analysis_result)
