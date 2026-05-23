@@ -20,51 +20,74 @@ from config import VIRUSTOTAL_API_KEY, VIRUSTOTAL_API_URL, CLAMAV_SOCKET
 # ---- ClamAV -----------------------------------------------------------------
 
 def _scan_clamav(pdf_path: Path) -> VirusScanEngine:
+    """
+    ClamAV via subprocess `clamscan` (kein Daemon noetig, kein pyclamd-Paket).
+    Vorteile gegenueber clamd:
+    - kein dauerhaft laufender Daemon (~600 MB RAM gespart)
+    - keine Socket/TCP-Konfiguration
+    - funktioniert sobald 'clamscan' im PATH ist und Signaturen via freshclam
+      liegen (Default: /var/lib/clamav)
+    """
+    import shutil
+    import subprocess
+
     engine = VirusScanEngine(name="ClamAV")
+    clamscan = shutil.which("clamscan")
+    if not clamscan:
+        engine.available = False
+        engine.error = (
+            "clamscan-Binary nicht gefunden. Installation: "
+            "sudo apt install clamav && sudo freshclam"
+        )
+        return engine
+
+    engine.available = True
+    t0 = time.monotonic()
     try:
-        import pyclamd  # type: ignore
-        t0 = time.monotonic()
-        try:
-            cd = pyclamd.ClamdUnixSocket(filename=CLAMAV_SOCKET)
-            cd.ping()
-        except Exception:
-            # Fallback: TCP (Windows / Docker)
-            try:
-                cd = pyclamd.ClamdNetworkSocket(host="127.0.0.1", port=3310)
-                cd.ping()
-            except Exception as e:
-                engine.available = False
-                engine.error = f"clamd nicht erreichbar: {e}"
-                return engine
-
-        engine.available = True
-        result = cd.scan_file(str(pdf_path))
-        elapsed = int((time.monotonic() - t0) * 1000)
-        engine.scan_duration_ms = elapsed
+        # --no-summary: weniger Ausgabe
+        # --infected:   nur infizierte zeigen
+        # --stdout:     alles auf stdout
+        # Exit-Code: 0=clean, 1=infected, 2=error
+        proc = subprocess.run(
+            [clamscan, "--no-summary", "--infected", "--stdout", str(pdf_path)],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        engine.scan_duration_ms = int((time.monotonic() - t0) * 1000)
         engine.scanned = True
+        out = (proc.stdout or "") + (proc.stderr or "")
 
-        if result is None:
+        if proc.returncode == 0:
             engine.clean = True
-        else:
-            # result = {filepath: ("FOUND", "Eicar-Test-Signature")} or ("ERROR", msg)
-            for fpath, verdict in result.items():
-                status, name = verdict
-                if status == "FOUND":
-                    engine.clean = False
+        elif proc.returncode == 1:
+            engine.clean = False
+            # Format: "<path>: <signature> FOUND"
+            for line in out.splitlines():
+                line = line.strip()
+                if line.endswith("FOUND"):
+                    payload = line[:-len("FOUND")].strip().rstrip(":")
+                    # payload = "/path: SIG_NAME"
+                    if ":" in payload:
+                        fpath, name = payload.rsplit(":", 1)
+                    else:
+                        fpath, name = str(pdf_path), payload
                     engine.detections.append({
                         "scanner": "ClamAV",
-                        "result":  name,
-                        "file":    fpath,
+                        "result":  name.strip(),
+                        "file":    fpath.strip(),
                     })
-                elif status == "ERROR":
-                    engine.error = name
+        else:
+            # returncode 2 = ClamAV-Fehler
+            engine.error = (out.strip() or f"clamscan exit={proc.returncode}")[:500]
+            engine.scanned = False
 
-    except ImportError:
-        engine.available = False
-        engine.error = "ClamAV nicht installiert"
+    except subprocess.TimeoutExpired:
+        engine.error = "clamscan Timeout (>180s)"
+        engine.scanned = False
     except Exception as e:
-        engine.available = False
-        engine.error = str(e)
+        engine.error = str(e)[:300]
+        engine.scanned = False
 
     return engine
 

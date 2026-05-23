@@ -79,6 +79,8 @@
       <div id="aiReviewPanel" style="display:none" class="card ai-review-card">
         <div class="ai-review-header">
           <span class="ai-review-title">&#x1F916; KI-Forensikgutachten &mdash; Gemma 4</span>
+          <button class="btn btn-ghost btn-sm" title="Neu generieren — verwirft Cache und startet frisch"
+                  onclick="if (typeof requestAiReview === 'function') requestAiReview(true)">&#x21BB; Neu</button>
           <button class="btn btn-ghost btn-sm" onclick="document.getElementById('aiReviewPanel').style.display='none'">&#x2715;</button>
         </div>
         <div id="aiReviewLoading" style="display:none" class="ai-review-loading-v2">

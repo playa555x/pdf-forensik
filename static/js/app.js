@@ -503,7 +503,7 @@ function _fmtTime(sec) {
   return `${m}:${s.toString().padStart(2,'0')}`;
 }
 
-async function requestAiReview() {
+async function requestAiReview(forceRegenerate) {
   if (!currentAnalysisId) return;
 
   const panel   = document.getElementById('aiReviewPanel');
@@ -520,7 +520,9 @@ async function requestAiReview() {
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const lang = (typeof getLang === 'function') ? getLang() : 'de';
-  const url  = `/ai-review/${currentAnalysisId}/stream?lang=${lang}`;
+  // forceRegenerate=true -> Cache verwerfen, neu generieren
+  const forceParam = forceRegenerate ? '&force=true' : '';
+  const url  = `/ai-review/${currentAnalysisId}/stream?lang=${lang}${forceParam}`;
 
   // Elemente cachen
   const prelimText   = document.getElementById('aiPrelimText');
