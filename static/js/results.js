@@ -373,16 +373,25 @@ function renderRiskBanner(data) {
   target.appendChild(sep());
   target.appendChild(text(t('lbl_analysiert') + ': ' + formatDate(data.analyzed_at)));
 
-  // Prominenter Anfaenger-Bericht-Link, wenn analysis_id vorhanden
+  // Prominenter Anfaenger-Bericht-Link + PDF-Viewer, wenn analysis_id vorhanden
   const aid = data.analysis_id;
   if (aid && /^[A-Za-z0-9-]{8,64}$/.test(aid)) {
-    const a = document.createElement('a');
-    a.href = '/report/layperson/' + encodeURIComponent(aid);
-    a.target = '_blank';
-    a.rel = 'noopener';
-    a.style.cssText = "display:inline-block;margin-left:12px;padding:4px 10px;background:#6366f1;color:#fff;border-radius:6px;text-decoration:none;font-size:0.78rem;font-weight:600;white-space:nowrap";
-    a.textContent = '📋 Anfänger-Bericht';
-    target.appendChild(a);
+    const lp = document.createElement('a');
+    lp.href = '/report/layperson/' + encodeURIComponent(aid);
+    lp.target = '_blank';
+    lp.rel = 'noopener';
+    lp.style.cssText = "display:inline-block;margin-left:12px;padding:4px 10px;background:#6366f1;color:#fff;border-radius:6px;text-decoration:none;font-size:0.78rem;font-weight:600;white-space:nowrap";
+    lp.textContent = '📋 Anfänger-Bericht';
+    target.appendChild(lp);
+
+    const vw = document.createElement('a');
+    vw.href = '/view/' + encodeURIComponent(aid);
+    vw.target = '_blank';
+    vw.rel = 'noopener';
+    vw.style.cssText = "display:inline-block;margin-left:6px;padding:4px 10px;background:#065f46;color:#fff;border-radius:6px;text-decoration:none;font-size:0.78rem;font-weight:600;white-space:nowrap";
+    vw.title = 'Server-seitig gerendert — kein PDF-Parsing im Browser, kein Exploit-Risiko';
+    vw.textContent = '🛡 Sicherer Viewer';
+    target.appendChild(vw);
   }
 }
 

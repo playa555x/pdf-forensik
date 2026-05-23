@@ -75,7 +75,11 @@
 
   <div class="topbar">
     <h1>Anfaenger-Bericht</h1>
-    <a href="/?analysis_id={{ analysis_id }}">⟵ Zur technischen Ansicht</a>
+    <div style="display:flex;gap:10px;align-items:center">
+      <a href="/view/{{ analysis_id }}" target="_blank" rel="noopener"
+         style="background:#065f46;color:#fff;padding:4px 10px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600">🛡 Sicher ansehen</a>
+      <a href="/?analysis_id={{ analysis_id }}">⟵ Zur technischen Ansicht</a>
+    </div>
   </div>
 
   <div class="meta">

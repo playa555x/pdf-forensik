@@ -606,8 +606,12 @@ async def run_ai_review(analysis_data: Dict[str, Any], lang: str = "de") -> Dict
 # ───────── Quick-Impression (schnelles 8B-Modell, Streaming) ─────────
 
 _QUICK_SYS_DE = (
+    "ANTWORTE AUSSCHLIESSLICH AUF DEUTSCH. Niemals Englisch. Auch wenn die "
+    "Eingabe englische Fachbegriffe enthaelt — deine Ausgabe ist komplett "
+    "deutsch.\n\n"
     "Du bist ein PDF-Forensik-Sachverständiger. Gib eine KURZE Erst-Einschätzung "
-    "(4-6 Sätze, Fließtext, kein JSON). Nenne: vermutlicher Dokumenttyp, die "
+    "(4-6 Sätze, Fließtext, kein JSON, KEIN Reasoning-Block, KEIN '<think>'). "
+    "Nenne: vermutlicher Dokumenttyp, die "
     "auffälligsten Befunde, vorläufige Tendenz (echt / verdächtig / unklar). "
     "Schreibe so dass ein Laie es versteht. Schließe mit dem Satz: "
     "'Die tiefe forensische Analyse läuft jetzt — sie dauert etwa 3-5 Minuten.'"

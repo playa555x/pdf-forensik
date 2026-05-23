@@ -92,13 +92,26 @@ async def analyze_pdf(file: UploadFile = File(...), profile: str = "standard"):
             )
 
         await save_analysis(result)
+        # Datei NICHT loeschen — wird vom In-Browser-PDF-Viewer und Evidence-
+        # Renderer benoetigt. Unter <analysis_id>.<ext> umbenennen damit der
+        # Viewer sie ohne DB-Lookup findet.
+        try:
+            final_path = UPLOAD_DIR / f"{result.analysis_id}.{ext}"
+            if tmp_path.exists() and tmp_path.resolve() != final_path.resolve():
+                tmp_path.rename(final_path)
+        except Exception as e:
+            print(f"[WARN] Upload-File-Rename fehlgeschlagen: {e}")
     except HTTPException:
+        # Bei HTTPException: temp-File wegraeumen
+        if tmp_path.exists():
+            try: tmp_path.unlink()
+            except Exception: pass
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analyse fehlgeschlagen: {str(e)}")
-    finally:
         if tmp_path.exists():
-            tmp_path.unlink()
+            try: tmp_path.unlink()
+            except Exception: pass
+        raise HTTPException(status_code=500, detail=f"Analyse fehlgeschlagen: {str(e)}")
 
     return jsonable_encoder(result)
 

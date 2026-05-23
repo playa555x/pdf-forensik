@@ -97,6 +97,7 @@ from routes.batch            import router as batch_router
 from routes.ai_review        import router as ai_review_router
 from routes.chat             import router as chat_router
 from routes.layperson_report import router as layperson_router
+from routes.viewer            import router as viewer_router
 
 app.include_router(analysis_router)
 app.include_router(history_router)
@@ -106,6 +107,7 @@ app.include_router(batch_router)
 app.include_router(ai_review_router)
 app.include_router(chat_router)
 app.include_router(layperson_router)
+app.include_router(viewer_router)
 
 
 # ===== Startup =====
