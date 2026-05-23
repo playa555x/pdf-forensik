@@ -524,6 +524,208 @@ def _extract_json_from_response(content: str) -> dict:
     raise json.JSONDecodeError("Kein valides JSON in der Antwort gefunden", content, 0)
 
 
+# Aliases die 8B-Modelle haeufig statt der Schema-Namen liefern.
+# left = was die KI manchmal schreibt; right = was die UI erwartet.
+_FIELD_ALIASES = {
+    "analyse_zusammenfassung":   "zusammenfassung",
+    "summary":                   "zusammenfassung",
+    "uebersicht":                "zusammenfassung",
+    "fazit_kurz":                "fazit",
+    "schlussfolgerung":          "fazit",
+    "gesamtbewertung":           "fazit",
+    "details_analyse":           "_details_raw",
+    "details":                   "_details_raw",
+    "ausblick":                  "_ausblick_raw",
+    "zusatzanalyse_aus_analysen": "_addon_raw",
+    "befunde":                   "hauptbefunde",
+    "main_findings":             "hauptbefunde",
+    "findings":                  "hauptbefunde",
+    "manipulationsindikatoren":  "manipulation_hinweise",
+    "manipulation_indicators":   "manipulation_hinweise",
+    "weitere_pruefungen":        "weitere_tests",
+    "weiterfuehrende_tests":     "weitere_tests",
+    "weiterführende_untersuchung": "weitere_tests",
+    "offene_fragen":             "_offene_fragen_raw",
+    "recommendations":           "empfehlungen",
+    "ratschlag":                 "empfehlungen",
+    "handlungsempfehlung":       "verhaltensempfehlung",
+    "erklaerung_laie":           "laien_erklaerung",
+    "erklaerung_fuer_laien":     "laien_erklaerung",
+    "laienerklaerung":           "laien_erklaerung",
+    "risiko":                    "risiko_erklaerung",
+    "dokumenttyp_vermutung":     "_dokumenttyp_raw",
+    "doc_type":                  "_dokumenttyp_raw",
+}
+
+
+def _walk_details_for_findings(details_raw) -> tuple:
+    """
+    Geht durch ein `details`-Dict (typisch fuer 8B-Output) und sammelt
+    daraus Hauptbefunde, Manipulation_hinweise und technische_details-Text.
+
+    Erwartete Form pro Section:
+      details["section_name"] = {"bemerkungen": "...", "<andere>": "..."}
+    """
+    hauptbefunde = []
+    manip_hinweise = []
+    tech_lines = []
+    if not isinstance(details_raw, dict):
+        return hauptbefunde, manip_hinweise, tech_lines
+
+    sev_for_section = {
+        "manipulationsverdacht": "MITTEL",
+        "manipulation":          "MITTEL",
+        "shadow_attack":         "HOCH",
+        "signaturen":            "MITTEL",
+    }
+    for sec_name, sec in details_raw.items():
+        if not isinstance(sec, dict):
+            # Section kann auch direkt ein String sein
+            if isinstance(sec, str):
+                tech_lines.append(f"{sec_name}: {sec}")
+            continue
+        nicer_sec = sec_name.replace("_", " ")
+        # 1) bemerkungen / begruendung in techn. details + ggf. befund
+        note = sec.get("bemerkungen") or sec.get("note") or sec.get("comment") \
+               or sec.get("begruendung") or sec.get("begründung") or ""
+        if note:
+            tech_lines.append(f"{nicer_sec}: {note}")
+            hauptbefunde.append({
+                "befund":      f"{nicer_sec.capitalize()}",
+                "bedeutung":   note,
+                "schweregrad": "MITTEL" if any(k in sec_name.lower() for k in ("verdacht","manipul","shadow")) else "NIEDRIG",
+            })
+        # 2) sub-keys die selbst Werte sind
+        for k, v in sec.items():
+            if k in ("bemerkungen","note","comment","begruendung","begründung"):
+                continue
+            if isinstance(v, str):
+                tech_lines.append(f"{nicer_sec} - {k.replace('_',' ')}: {v}")
+            elif isinstance(v, list):
+                tech_lines.append(f"{nicer_sec} - {k.replace('_',' ')}: {', '.join(str(x) for x in v[:6])}")
+        # 3) Manipulationsverdacht -> Hinweis-Liste
+        if "manipul" in sec_name.lower():
+            hv = sec.get("hauptverdacht") or sec.get("verdacht") or ""
+            if hv or note:
+                manip_hinweise.append({
+                    "hinweis":     f"{nicer_sec.capitalize()}: {hv or 'siehe Begruendung'}",
+                    "erklaerung":  note or "",
+                    "schweregrad": sev_for_section.get(sec_name.lower(), "NIEDRIG"),
+                })
+    return hauptbefunde, manip_hinweise, tech_lines
+
+
+def _normalize_ai_review(d: dict) -> dict:
+    """
+    Wenn ein kleineres Modell das Schema mit anderen Feldnamen liefert,
+    mappen wir die Aliase auf die Schema-Namen. Sortiert dict-/list-Output
+    und stellt sicher dass Listen-Felder echte Listen sind.
+    """
+    if not isinstance(d, dict):
+        return {}
+
+    out: dict = {}
+    # 1) Apply aliasing (case-insensitive)
+    for key, val in d.items():
+        target = _FIELD_ALIASES.get(key, _FIELD_ALIASES.get((key or "").lower(), key))
+        # Wenn target schon belegt UND val ist nicht-leer, ueberschreiben wir nicht
+        if target in out and out[target] not in (None, "", [], {}):
+            continue
+        out[target] = val
+
+    # 2) details_analyse / details / ausblick / zusatzanalyse als Backup ausschlachten
+    details = out.pop("_details_raw", None)
+    ausblick = out.pop("_ausblick_raw", None)
+    addon   = out.pop("_addon_raw", None)
+    offene_fragen = out.pop("_offene_fragen_raw", None)
+
+    if isinstance(details, dict):
+        hb, mh, tech_lines = _walk_details_for_findings(details)
+        # Hauptbefunde nur dann ergaenzen wenn die KI noch keine eigenen geliefert hat
+        if hb and not out.get("hauptbefunde"):
+            out["hauptbefunde"] = hb
+        if mh and not out.get("manipulation_hinweise"):
+            out["manipulation_hinweise"] = mh
+        if tech_lines and not out.get("technische_details"):
+            out["technische_details"] = " | ".join(tech_lines)
+
+    if isinstance(addon, dict):
+        # Append addon-bemerkungen an technische_details
+        extra = []
+        for k, v in addon.items():
+            if isinstance(v, str):
+                extra.append(f"{k.replace('_',' ')}: {v}")
+        if extra:
+            existing = out.get("technische_details") or ""
+            out["technische_details"] = (existing + " | " if existing else "") + " | ".join(extra)
+
+    if isinstance(ausblick, dict):
+        if not out.get("dokument_inhalt_bewertung"):
+            out["dokument_inhalt_bewertung"] = {
+                "dokumenttyp_vermutung": ausblick.get("dokumenttyp", "") or "",
+                "auffaelligkeiten":      [],
+            }
+            ge = ausblick.get("generelle_einschätzung") or ausblick.get("generelle_einschaetzung")
+            if ge:
+                out["dokument_inhalt_bewertung"]["inhalt_plausibilitaet"] = ge
+
+    # 2b) offene_fragen -> weitere_tests, wenn nicht schon befuellt
+    if isinstance(offene_fragen, list) and not out.get("weitere_tests"):
+        out["weitere_tests"] = [
+            {"test": str(q), "grund": "Offene Frage aus der KI-Analyse",
+             "prioritaet": "MITTEL"}
+            for q in offene_fragen if q
+        ]
+
+    # 2c) laien_erklaerung aus zusammenfassung wenn fehlt
+    if not out.get("laien_erklaerung") and out.get("zusammenfassung"):
+        out["laien_erklaerung"] = out["zusammenfassung"]
+
+    # 2d) fazit aus gesamtbewertung wenn fazit leer
+    if not out.get("fazit") and out.get("zusammenfassung"):
+        out["fazit"] = out.get("zusammenfassung", "")
+
+    # 2e) risiko_erklaerung aus zusammenfassung wenn leer
+    if not out.get("risiko_erklaerung") and out.get("zusammenfassung"):
+        out["risiko_erklaerung"] = "Basierend auf der Analyse: " + (out.get("zusammenfassung") or "")[:300]
+
+    # 3) Empfehlungen / Hauptbefunde / Manipulation_hinweise als Listen erzwingen
+    # MUSS VOR Schritt 2f passieren, sonst [0]-Indexing auf Dict crasht
+    for list_key in ("hauptbefunde", "manipulation_hinweise", "empfehlungen",
+                     "weitere_tests", "erweiterungsvorschlaege"):
+        v = out.get(list_key)
+        if v is None:
+            continue
+        if isinstance(v, dict):
+            flat = []
+            for k, vv in v.items():
+                if isinstance(vv, list):
+                    flat.extend(vv)
+                elif isinstance(vv, str):
+                    flat.append(vv)
+                elif isinstance(vv, dict):
+                    flat.append(vv)
+            out[list_key] = flat
+        elif isinstance(v, str):
+            out[list_key] = [v]
+        elif not isinstance(v, list):
+            out[list_key] = [str(v)]
+
+    # 2f) verhaltensempfehlung aus erster empfehlung (jetzt sicher Liste)
+    emp = out.get("empfehlungen") or []
+    if not out.get("verhaltensempfehlung") and isinstance(emp, list) and len(emp) > 0:
+        first = emp[0]
+        out["verhaltensempfehlung"] = first if isinstance(first, str) else str(first)
+
+    # 4) Wenn kein verdict aber zusammenfassung da ist → "UNBEKANNT" defaulten
+    if not out.get("verdict") and out.get("zusammenfassung"):
+        out["verdict"] = "UNBEKANNT"
+    if out.get("legitimitaets_score") is None:
+        out["legitimitaets_score"] = 50
+
+    return out
+
+
 async def run_ai_review(analysis_data: Dict[str, Any], lang: str = "de") -> Dict[str, Any]:
     """
     Sendet Analysedaten an das lokale Ollama-Modell (Gemma4) und gibt strukturiertes Review zurück.
@@ -565,9 +767,16 @@ async def run_ai_review(analysis_data: Dict[str, Any], lang: str = "de") -> Dict
                 response.raise_for_status()
 
             data = response.json()
-            content = data["choices"][0]["message"]["content"]
+            msg = data["choices"][0]["message"]
+            # Reasoning-Modelle (gemma4-heretic 26B) liefern den Output in
+            # `reasoning` statt `content`. Beide Felder beruecksichtigen.
+            content = msg.get("content") or ""
+            reasoning = msg.get("reasoning") or ""
+            # Wenn content leer und reasoning gefuellt -> reasoning nehmen
+            raw = content if content.strip() else reasoning
 
-            review = _extract_json_from_response(content)
+            parsed = _extract_json_from_response(raw)
+            review = _normalize_ai_review(parsed)
             review["model"] = OLLAMA_MODEL
             review["available"] = True
             return review
