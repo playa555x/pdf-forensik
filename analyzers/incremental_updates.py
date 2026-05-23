@@ -91,11 +91,24 @@ def analyze_incremental_updates(pdf_path: Path) -> IncrementalUpdatesResult:
 
     # Anomalien
     if revision_count > 1:
+        # Severity-Calibration (NIST/ISO PDF-Forensik Best-Practice 2026):
+        # 2-3 Revisionen = NORMAL (Signatur, DSS, LTV-Updates)
+        # 4-5 = MEDIUM (mehrfach editiert)
+        # >5 oder kleine letzte Revision = HIGH (Anti-Forensik Pattern)
+        if revision_count <= 3:
+            sev = AnomalySeverity.LOW
+            label = "normal bei signierten/annotierten Dokumenten"
+        elif revision_count <= 5:
+            sev = AnomalySeverity.MEDIUM
+            label = "mehrfach editiert -- pruefen warum"
+        else:
+            sev = AnomalySeverity.HIGH
+            label = "ungewoehnlich viele Aenderungen"
         anomalies.append(Anomaly(
-            severity=AnomalySeverity.HIGH,
+            severity=sev,
             category="incremental_updates",
-            message=f"Dokument enthält {revision_count} Revisionen — Inhalt wurde nach Erstellung verändert",
-            detail=f"Revisions-Größen: {[r['size_bytes'] for r in revisions]} Bytes",
+            message=f"Dokument enthaelt {revision_count} Revisionen ({label})",
+            detail=f"Revisions-Groessen: {[r['size_bytes'] for r in revisions]} Bytes. 2-3 Revisionen sind bei Signing/DSS/Annotationen normal.",
         ))
 
         # Wenn letzte Revision sehr klein ist → wahrscheinlich nur Metadaten geändert

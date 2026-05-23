@@ -69,21 +69,21 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 @app.get("/", response_class=HTMLResponse)
 async def index_page(request: Request):
     return templates.TemplateResponse(
-        "index.html", {"request": request, "active": "index"}
+        request, "index.html", {"active": "index"}
     )
 
 
 @app.get("/history", response_class=HTMLResponse)
 async def history_page(request: Request):
     return templates.TemplateResponse(
-        "history.html", {"request": request, "active": "history"}
+        request, "history.html", {"active": "history"}
     )
 
 
 @app.get("/compare", response_class=HTMLResponse)
 async def compare_page(request: Request):
     return templates.TemplateResponse(
-        "compare.html", {"request": request, "active": "compare"}
+        request, "compare.html", {"active": "compare"}
     )
 
 

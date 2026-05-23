@@ -1,11 +1,10 @@
 """
-POST /chat — KI-Chat über den aktuellen Analysebericht.
+POST /chat — KI-Chat über den aktuellen Analysebericht (lokales Ollama / Gemma4).
 Streamt die Antwort via Server-Sent Events.
 """
 from __future__ import annotations
 
 import json
-import os
 from typing import AsyncIterator
 
 import httpx
@@ -13,13 +12,10 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from config import OLLAMA_API_URL, OLLAMA_CHAT_MODEL as OLLAMA_MODEL, OLLAMA_TIMEOUT
 from database.db import get_analysis, get_ai_review
 
 router = APIRouter()
-
-FEATHERLESS_API_URL = "https://api.featherless.ai/v1/chat/completions"
-FEATHERLESS_API_KEY = os.environ.get("FEATHERLESS_API_KEY", "")
-FEATHERLESS_MODEL = "deepseek-ai/DeepSeek-V3-0324"
 
 _SYSTEM_BASE = """\
 Du bist ein forensischer PDF-Analyst-Assistent. Du hilfst dabei, Analyseergebnisse zu erklären
@@ -70,23 +66,23 @@ def _build_context(result, ai_review: dict | None, lang: str) -> str:
 
 
 async def _stream_chat(messages: list[dict]) -> AsyncIterator[str]:
-    """Streamt die DeepSeek-Antwort als SSE-Events."""
+    """Streamt die Ollama/Gemma4-Antwort als SSE-Events."""
     payload = {
-        "model": FEATHERLESS_MODEL,
+        "model": OLLAMA_MODEL,
         "messages": messages,
         "stream": True,
         "max_tokens": 1024,
         "temperature": 0.7,
     }
     headers = {
-        "Authorization": f"Bearer {FEATHERLESS_API_KEY}",
+        "Authorization": "Bearer ollama",
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
     }
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            async with client.stream("POST", FEATHERLESS_API_URL, json=payload, headers=headers) as resp:
+        async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
+            async with client.stream("POST", OLLAMA_API_URL, json=payload, headers=headers) as resp:
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: "):
                         continue
@@ -108,7 +104,7 @@ async def _stream_chat(messages: list[dict]) -> AsyncIterator[str]:
 
 @router.post("/chat")
 async def chat_endpoint(req: ChatRequest):
-    """Chat mit DeepSeek über den aktuellen Analysebericht."""
+    """Chat mit Ollama/Gemma4 über den aktuellen Analysebericht."""
     lang = req.lang if req.lang in ("de", "en") else "de"
     system_prompt = _SYSTEM_BASE
 

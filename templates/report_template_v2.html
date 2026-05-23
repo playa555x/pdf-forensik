@@ -683,6 +683,36 @@ hr.divider {
     margin: 3mm 0;
 }
 
+
+/* === Tier 1/2/3/4 Erklaerungs-Boxen === */
+.analyzer-explainer {
+    background: rgba(59,130,246,0.08);
+    border-left: 2pt solid #3b82f6;
+    border-radius: 0 2pt 2pt 0;
+    padding: 3mm 4mm;
+    margin: 2mm 0 4mm 0;
+    font-size: 8.5pt;
+    color: #cbd5e1;
+    line-height: 1.45;
+}
+.analyzer-explainer h4 {
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: #93c5fd;
+    margin: 0 0 1.5mm 0;
+    letter-spacing: 0.3pt;
+    text-transform: uppercase;
+}
+.analyzer-explainer p {
+    margin: 0 0 1.5mm 0;
+}
+.analyzer-explainer p:last-child {
+    margin: 0;
+}
+.analyzer-explainer .what    { color: #f1f5f9; }
+.analyzer-explainer .how     { color: #cbd5e1; }
+.analyzer-explainer .meaning { color: #fcd34d; }
+
 </style>
 </head>
 <body>
@@ -1783,6 +1813,443 @@ hr.divider {
 </div>
 {% endif %}
 
+
+
+{# ══════════════════════════════════════════════════════════════
+   OPEN-SOURCE FORENSIK-TOOLS (pdfid / pdf-parser / qpdf / binwalk / PyMuPDF)
+══════════════════════════════════════════════════════════════ #}
+{% if r.opensource_forensics %}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">OPEN-SOURCE FORENSIK</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+
+  <div class="sec-header"><span class="sec-title">Open-Source Tool-Wrapper</span></div>
+  <p style="font-size:9pt;color:#555;margin:2mm 0 4mm 0">
+    Diese Sektion fuehrt die etablierten Open-Source Forensik-Tools direkt auf der PDF aus
+    (Didier Stevens Suite, qpdf, binwalk, PyMuPDF) und zeigt Roh-Output + abgeleitete Anomalien.
+  </p>
+
+  {# qpdf / Revisionen #}
+  <div class="sec-header"><span class="sec-title">qpdf — Revisionen &amp; xref</span></div>
+  <table class="kv">
+    <tr><td>%%EOF Marker</td><td>{{ r.opensource_forensics.qpdf_qdf.eof_count if r.opensource_forensics.qpdf_qdf.eof_count is defined else '—' }}</td></tr>
+    <tr><td>startxref Marker</td><td>{{ r.opensource_forensics.qpdf_qdf.startxref_count if r.opensource_forensics.qpdf_qdf.startxref_count is defined else '—' }}</td></tr>
+    <tr><td>obj / endobj</td><td>{{ r.opensource_forensics.qpdf_qdf.obj_count }} / {{ r.opensource_forensics.qpdf_qdf.endobj_count }}</td></tr>
+    <tr><td>QDF-Output</td><td><code style="font-size:8pt">{{ r.opensource_forensics.qpdf_qdf.qdf_file or '—' }}</code></td></tr>
+  </table>
+  {% if r.opensource_forensics.qpdf_qdf.xref and r.opensource_forensics.qpdf_qdf.xref.stdout %}
+  <details><summary style="cursor:pointer;margin-top:2mm">qpdf --show-xref Output</summary>
+    <pre style="font-size:7.5pt;background:rgba(15,23,42,0.7);color:#cbd5e1;padding:2mm;border:0.3pt solid rgba(255,255,255,0.05);border-radius:2pt;max-height:80mm;overflow:auto">{{ r.opensource_forensics.qpdf_qdf.xref.stdout[:8000] }}</pre>
+  </details>
+  {% endif %}
+
+  {# pdfid #}
+  <div class="sec-header"><span class="sec-title">pdfid — Keyword-Statistik</span></div>
+  {% if r.opensource_forensics.pdfid.stdout %}
+  <pre style="font-size:8pt;background:rgba(15,23,42,0.7);color:#cbd5e1;padding:2mm;border:0.3pt solid rgba(255,255,255,0.05);border-radius:2pt;max-height:90mm;overflow:auto">{{ r.opensource_forensics.pdfid.stdout[:6000] }}</pre>
+  {% else %}
+  <p style="color:#888">pdfid nicht verfuegbar: {{ r.opensource_forensics.pdfid.stderr }}</p>
+  {% endif %}
+
+  {# pdf-parser stats #}
+  <div class="sec-header"><span class="sec-title">pdf-parser — Object-Stats</span></div>
+  {% if r.opensource_forensics.pdf_parser_stats.stdout %}
+  <pre style="font-size:8pt;background:rgba(15,23,42,0.7);color:#cbd5e1;padding:2mm;border:0.3pt solid rgba(255,255,255,0.05);border-radius:2pt;max-height:80mm;overflow:auto">{{ r.opensource_forensics.pdf_parser_stats.stdout[:6000] }}</pre>
+  {% else %}
+  <p style="color:#888">pdf-parser nicht verfuegbar: {{ r.opensource_forensics.pdf_parser_stats.stderr }}</p>
+  {% endif %}
+
+  {# pdf-parser orphans #}
+  <div class="sec-header"><span class="sec-title">pdf-parser — Verwaiste Objekte (--reference)</span></div>
+  {% if r.opensource_forensics.pdf_parser_orphans.stdout %}
+  <pre style="font-size:8pt;background:rgba(15,23,42,0.7);color:#cbd5e1;padding:2mm;border:0.3pt solid rgba(255,255,255,0.05);border-radius:2pt;max-height:90mm;overflow:auto">{{ r.opensource_forensics.pdf_parser_orphans.stdout[:8000] }}</pre>
+  {% else %}
+  <p style="color:#888">{{ r.opensource_forensics.pdf_parser_orphans.stderr or '—' }}</p>
+  {% endif %}
+
+  {# binwalk #}
+  <div class="sec-header"><span class="sec-title">binwalk — Embedded Signatures</span></div>
+  {% if r.opensource_forensics.binwalk.stdout %}
+  <pre style="font-size:8pt;background:rgba(15,23,42,0.7);color:#cbd5e1;padding:2mm;border:0.3pt solid rgba(255,255,255,0.05);border-radius:2pt;max-height:80mm;overflow:auto">{{ r.opensource_forensics.binwalk.stdout[:5000] }}</pre>
+  {% else %}
+  <p style="color:#888">binwalk nicht verfuegbar: {{ r.opensource_forensics.binwalk.stderr }}</p>
+  {% endif %}
+
+  {# PyMuPDF #}
+  <div class="sec-header"><span class="sec-title">PyMuPDF (fitz) — Low-Level Inspection</span></div>
+  <table class="kv">
+    <tr><td>Pages</td><td>{{ r.opensource_forensics.pymupdf_lowlevel.page_count }}</td></tr>
+    <tr><td>xref Length</td><td>{{ r.opensource_forensics.pymupdf_lowlevel.xref_length }}</td></tr>
+    <tr><td>Encrypted</td><td>{{ r.opensource_forensics.pymupdf_lowlevel.is_encrypted }}</td></tr>
+    <tr><td>Repaired</td><td>{% if r.opensource_forensics.pymupdf_lowlevel.is_repaired %}&#9888; JA{% else %}Nein{% endif %}</td></tr>
+    <tr><td>Stream Objects</td><td>{{ r.opensource_forensics.pymupdf_lowlevel.stream_object_count }}</td></tr>
+  </table>
+  {% if r.opensource_forensics.pymupdf_lowlevel.object_types %}
+  <p style="margin-top:3mm;font-weight:bold">Object-Type Verteilung</p>
+  <table class="kv">
+    {% for t, c in r.opensource_forensics.pymupdf_lowlevel.object_types.items() %}
+    <tr><td>{{ t }}</td><td>{{ c }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {# Anomalien #}
+  {% if r.opensource_forensics.anomalies %}
+  <div class="sec-header"><span class="sec-title">Anomalien aus Open-Source Tools</span></div>
+  <table class="anom-table">
+    <thead><tr><th style="width:14mm">SEV</th><th style="width:40mm">Kategorie</th><th>Befund</th></tr></thead>
+    <tbody>
+    {% for a in r.opensource_forensics.anomalies %}
+    <tr>
+      <td>{{ a.severity }}</td>
+      <td>{{ a.category }}</td>
+      <td>{{ a.description }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endif %}
+
+
+{# ══════════════════════════════════════════════════════════════
+   TIER 1 ERWEITERUNG — ExifTool / OCR / mpeepdf / Copy-Move / Annotation
+══════════════════════════════════════════════════════════════ #}
+
+{% if r.exiftool %}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">EXIFTOOL DEEP METADATA</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+  <div class="sec-header"><span class="sec-title">ExifTool — 1000+ Tag-Extraktion</span></div>
+  {% if r.exiftool.error %}
+    <p style="color:#a00">Fehler: {{ r.exiftool.error }}</p>
+  {% else %}
+    <table class="kv">
+      <tr><td>Tag-Anzahl</td><td>{{ r.exiftool.tag_count }}</td></tr>
+      <tr><td>Producer</td><td>{{ r.exiftool.producer or '—' }}</td></tr>
+      <tr><td>CreatorTool</td><td>{{ r.exiftool.creator_tool or '—' }}</td></tr>
+      <tr><td>Document-ID</td><td><code>{{ r.exiftool.document_id or '—' }}</code></td></tr>
+      <tr><td>Instance-ID</td><td><code>{{ r.exiftool.instance_id or '—' }}</code></td></tr>
+      <tr><td>Original-Document-ID</td><td><code>{{ r.exiftool.original_document_id or '—' }}</code></td></tr>
+      <tr><td>Derived-From</td><td><code>{{ r.exiftool.derived_from or '—' }}</code></td></tr>
+    </table>
+
+    {% if r.exiftool.xmp_history %}
+    <p style="margin-top:3mm;font-weight:bold">XMP Edit-History ({{ r.exiftool.xmp_history|length }} Eintraege)</p>
+    <pre style="font-size:8pt;background:rgba(15,23,42,0.7);color:#cbd5e1;padding:2mm;border:0.3pt solid rgba(255,255,255,0.05);border-radius:2pt;max-height:80mm;overflow:auto">{{ r.exiftool.xmp_history[:20] }}</pre>
+    {% endif %}
+
+    {% if r.exiftool.raw_tags %}
+    <details><summary style="cursor:pointer;margin-top:3mm">Alle Tags ({{ r.exiftool.raw_tags|length }})</summary>
+      <table class="kv" style="margin-top:2mm">
+      {% for k, v in r.exiftool.raw_tags.items() %}
+        <tr><td style="font-size:8pt"><code>{{ k }}</code></td><td style="font-size:8pt">{{ (v|string)[:160] }}</td></tr>
+      {% endfor %}
+      </table>
+    </details>
+    {% endif %}
+
+    {% if r.exiftool.anomalies %}
+    <div class="sec-header" style="margin-top:4mm"><span class="sec-title">ExifTool-Anomalien</span></div>
+    <table class="anom-table">
+      <thead><tr><th style="width:14mm">SEV</th><th style="width:40mm">Kategorie</th><th>Befund</th></tr></thead>
+      <tbody>
+      {% for a in r.exiftool.anomalies %}
+      <tr><td>{{ a.severity }}</td><td>{{ a.category }}</td><td>{{ a.message }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if r.ocr_text_diff %}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">OCR vs EMBEDDED TEXT</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+  <div class="sec-header"><span class="sec-title">Tesseract OCR Diskrepanz-Analyse</span></div>
+  {% if r.ocr_text_diff.error %}
+    <p style="color:#a00">Fehler: {{ r.ocr_text_diff.error }}</p>
+  {% else %}
+    <table class="kv">
+      <tr><td>Embedded Tokens (gesamt)</td><td>{{ r.ocr_text_diff.total_embedded_tokens }}</td></tr>
+      <tr><td>OCR Tokens (gesamt)</td><td>{{ r.ocr_text_diff.total_ocr_tokens }}</td></tr>
+      <tr><td>Durchschnitts-Aehnlichkeit (Jaccard)</td><td>{{ r.ocr_text_diff.avg_similarity }}</td></tr>
+    </table>
+
+    {% if r.ocr_text_diff.pages %}
+    <table class="anom-table" style="margin-top:3mm">
+      <thead><tr>
+        <th>Seite</th><th>Embedded Tokens</th><th>OCR Tokens</th><th>Aehnlichkeit</th><th>Nur Embedded</th><th>Nur OCR</th>
+      </tr></thead>
+      <tbody>
+      {% for p in r.ocr_text_diff.pages %}
+      <tr>
+        <td>{{ p.page }}</td>
+        <td>{{ p.embedded_token_count }}</td>
+        <td>{{ p.ocr_token_count }}</td>
+        <td>{{ p.similarity_jaccard }}</td>
+        <td style="font-size:7.5pt">{{ p.only_in_embedded[:8] }}</td>
+        <td style="font-size:7.5pt">{{ p.only_in_ocr[:8] }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if r.ocr_text_diff.anomalies %}
+    <div class="sec-header" style="margin-top:4mm"><span class="sec-title">OCR-Anomalien</span></div>
+    <table class="anom-table">
+      <thead><tr><th style="width:14mm">SEV</th><th>Befund</th></tr></thead>
+      <tbody>
+      {% for a in r.ocr_text_diff.anomalies %}
+      <tr><td>{{ a.severity }}</td><td>{{ a.message }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if r.copy_move %}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">COPY-MOVE FORENSIK (DCT)</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+  <div class="sec-header"><span class="sec-title">DCT-basierte Klon-Erkennung</span></div>
+  {% if r.copy_move.error %}
+    <p style="color:#a00">Fehler: {{ r.copy_move.error }}</p>
+  {% else %}
+    <p>Match-Cluster total: <strong>{{ r.copy_move.total_match_clusters }}</strong></p>
+    {% for p in r.copy_move.pages %}
+    <p style="margin-top:2mm"><strong>Seite {{ p.page }}</strong> — Bloecke verarbeitet: {{ p.blocks_processed or 0 }},
+       Matches: {{ p.matches_found or 0 }}</p>
+    {% if p.matches %}
+    <table class="anom-table" style="margin-top:1mm">
+      <thead><tr><th>#</th><th>Shift</th><th>Match-Count</th><th>Source-BBox</th><th>Target-BBox</th></tr></thead>
+      <tbody>
+      {% for m in p.matches %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td><code>{{ m.shift }}</code></td>
+        <td>{{ m.match_count }}</td>
+        <td><code>{{ m.source_bbox }}</code></td>
+        <td><code>{{ m.target_bbox }}</code></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% endfor %}
+
+    {% if r.copy_move.anomalies %}
+    <div class="sec-header" style="margin-top:4mm"><span class="sec-title">Copy-Move-Anomalien</span></div>
+    <table class="anom-table">
+      <thead><tr><th style="width:14mm">SEV</th><th>Befund</th></tr></thead>
+      <tbody>
+      {% for a in r.copy_move.anomalies %}<tr><td>{{ a.severity }}</td><td>{{ a.message }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if r.annotation_forensics %}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">ANNOTATION-FORENSIK</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+  <div class="sec-header"><span class="sec-title">Annotation-Walk (alle Objekte, nicht nur referenziert)</span></div>
+  {% if r.annotation_forensics.error %}
+    <p style="color:#a00">Fehler: {{ r.annotation_forensics.error }}</p>
+  {% else %}
+    <table class="kv">
+      <tr><td>Annotations gesamt</td><td>{{ r.annotation_forensics.annotation_count }}</td></tr>
+      <tr><td>Verwaiste (orphan)</td><td>{{ r.annotation_forensics.orphan_count }}</td></tr>
+      <tr><td>Eindeutige Authoren</td><td>{{ r.annotation_forensics.unique_authors }}</td></tr>
+    </table>
+
+    {% if r.annotation_forensics.timeline %}
+    <p style="margin-top:3mm;font-weight:bold">Zeitlinie</p>
+    <table class="anom-table">
+      <thead><tr><th>Datum</th><th>Subtype</th><th>Author</th></tr></thead>
+      <tbody>
+      {% for t in r.annotation_forensics.timeline %}
+      <tr><td>{{ t.date }}</td><td>{{ t.subtype }}</td><td>{{ t.author or '—' }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if r.annotation_forensics.anomalies %}
+    <div class="sec-header" style="margin-top:4mm"><span class="sec-title">Annotation-Anomalien</span></div>
+    <table class="anom-table">
+      <thead><tr><th style="width:14mm">SEV</th><th>Befund</th></tr></thead>
+      <tbody>
+      {% for a in r.annotation_forensics.anomalies %}<tr><td>{{ a.severity }}</td><td>{{ a.message }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if r.mpeepdf %}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">MPEEPDF VULNERABILITY-SCAN</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+  <div class="sec-header"><span class="sec-title">mpeepdf — CVE/Vulnerability-Detection</span></div>
+  {% if r.mpeepdf.error %}
+    <p style="color:#a00">Fehler: {{ r.mpeepdf.error }}</p>
+  {% else %}
+    <table class="kv">
+      <tr><td>Vulnerabilities</td><td>{{ r.mpeepdf.vulnerabilities|length }}</td></tr>
+      <tr><td>Suspicious Elements</td><td>{{ r.mpeepdf.suspicious_elements|length }}</td></tr>
+      <tr><td>CVE References</td><td>{{ r.mpeepdf.cve_references|length }}</td></tr>
+    </table>
+    {% if r.mpeepdf.vulnerabilities %}
+    <pre style="font-size:8pt;background:rgba(15,23,42,0.7);color:#cbd5e1;padding:2mm;border:0.3pt solid rgba(255,255,255,0.05);border-radius:2pt">{{ r.mpeepdf.vulnerabilities }}</pre>
+    {% endif %}
+    {% if r.mpeepdf.suspicious_elements %}
+    <p style="margin-top:2mm">Suspicious Elements:</p>
+    <pre style="font-size:8pt;background:rgba(15,23,42,0.7);color:#cbd5e1;padding:2mm;border:0.3pt solid rgba(255,255,255,0.05);border-radius:2pt">{{ r.mpeepdf.suspicious_elements }}</pre>
+    {% endif %}
+    {% if r.mpeepdf.anomalies %}
+    <div class="sec-header" style="margin-top:4mm"><span class="sec-title">mpeepdf-Anomalien</span></div>
+    <table class="anom-table">
+      <thead><tr><th style="width:14mm">SEV</th><th>Befund</th></tr></thead>
+      <tbody>
+      {% for a in r.mpeepdf.anomalies %}<tr><td>{{ a.severity }}</td><td>{{ a.message }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+
+{# ══════════════════════════════════════════════════════════════
+   TIER 2 — HF SIGNATURE DETECTOR + TROCR HANDWRITING
+══════════════════════════════════════════════════════════════ #}
+
+{% if r.hf_signatures %}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">SIGNATUR-DETECTOR (YOLO11)</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+  <div class="sec-header"><span class="sec-title">HuggingFace Signature-Detection (Mels22 YOLO11n)</span></div>
+  {% if r.hf_signatures.error %}
+    <p style="color:#a00">Fehler: {{ r.hf_signatures.error }}</p>
+  {% else %}
+    <table class="kv">
+      <tr><td>Signaturen gefunden</td><td>{{ r.hf_signatures.total_signatures }}</td></tr>
+      <tr><td>Wiederverwendungs-Cluster</td><td>{{ r.hf_signatures.duplicates|length }}</td></tr>
+    </table>
+
+    {% if r.hf_signatures.detections %}
+    <table class="anom-table" style="margin-top:3mm">
+      <thead><tr><th>Seite</th><th>Label</th><th>Confidence</th><th>BBox</th><th>SHA256-short</th><th>pHash</th></tr></thead>
+      <tbody>
+      {% for d in r.hf_signatures.detections %}
+      {% if not d.error %}
+      <tr>
+        <td>{{ d.page }}</td>
+        <td>{{ d.label }}</td>
+        <td>{{ d.confidence }}</td>
+        <td><code style="font-size:7.5pt">{{ d.bbox }}</code></td>
+        <td><code style="font-size:7.5pt">{{ d.sha256_short }}</code></td>
+        <td><code style="font-size:7.5pt">{{ d.phash[:16] }}</code></td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if r.hf_signatures.duplicates %}
+    <div class="sec-header" style="margin-top:4mm"><span class="sec-title">Wiederverwendete Signaturen (pHash-Match)</span></div>
+    <table class="anom-table">
+      <thead><tr><th>pHash</th><th>Seiten</th><th>Vorkommen</th></tr></thead>
+      <tbody>
+      {% for dup in r.hf_signatures.duplicates %}
+      <tr><td><code>{{ dup.phash[:16] }}</code></td><td>{{ dup.pages }}</td><td>{{ dup.count }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if r.hf_signatures.anomalies %}
+    <div class="sec-header" style="margin-top:4mm"><span class="sec-title">Signatur-Anomalien</span></div>
+    <table class="anom-table">
+      <thead><tr><th style="width:14mm">SEV</th><th>Befund</th></tr></thead>
+      <tbody>
+      {% for a in r.hf_signatures.anomalies %}<tr><td>{{ a.severity }}</td><td>{{ a.message }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if r.hf_handwriting %}
+<div class="pb">
+  <div class="page-head">
+    <span class="page-head-left">HANDWRITING-OCR (TrOCR)</span>
+    <span class="page-head-right">{{ r.filename[:50] }}</span>
+  </div>
+  <div class="sec-header"><span class="sec-title">microsoft/trocr-base-handwritten</span></div>
+  {% if r.hf_handwriting.skipped %}
+    <p style="color:#888">Uebersprungen: {{ r.hf_handwriting.skipped }}</p>
+  {% elif r.hf_handwriting.error %}
+    <p style="color:#a00">Fehler: {{ r.hf_handwriting.error }}</p>
+  {% else %}
+    <table class="kv">
+      <tr><td>Crops verarbeitet</td><td>{{ r.hf_handwriting.total_processed }}</td></tr>
+      <tr><td>Davon ohne Text</td><td>{{ r.hf_handwriting.empty_count }}</td></tr>
+    </table>
+
+    {% if r.hf_handwriting.results %}
+    <table class="anom-table" style="margin-top:3mm">
+      <thead><tr><th>Crop</th><th>Erkannter Text</th><th>Char-Count</th></tr></thead>
+      <tbody>
+      {% for r2 in r.hf_handwriting.results %}
+      <tr>
+        <td><code style="font-size:7pt">{{ r2.crop_path[-40:] }}</code></td>
+        <td>{% if r2.error %}<span style="color:#a00">{{ r2.error }}</span>{% else %}{{ r2.text }}{% endif %}</td>
+        <td>{{ r2.char_count or 0 }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if r.hf_handwriting.anomalies %}
+    <div class="sec-header" style="margin-top:4mm"><span class="sec-title">Handwriting-Anomalien</span></div>
+    <table class="anom-table">
+      <thead><tr><th style="width:14mm">SEV</th><th>Befund</th></tr></thead>
+      <tbody>
+      {% for a in r.hf_handwriting.anomalies %}<tr><td>{{ a.severity }}</td><td>{{ a.message }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endif %}
+</div>
+{% endif %}
 
 {# ══════════════════════════════════════════════════════════════
    VOLLSTÄNDIGE ANOMALIE-ÜBERSICHT (Anhang)

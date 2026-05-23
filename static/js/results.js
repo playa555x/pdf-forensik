@@ -261,20 +261,22 @@ function renderResult(data) {
   try { _applyStatusBadges(data); } catch(e) { console.error('[StatusBadges]', e); }
 
   // GSAP animate result cards
+  // WICHTIG: KEIN opacity:0 — bleibt sonst auf 0 wenn Tween nicht zu Ende laeuft (Re-Render).
+  // Selbe Lektion wie charts.js:750. Nur Transform animieren, mit clearProps zum Saubermachen.
   if (window.gsap) {
     gsap.from('#resultContainer .card', {
       y: 20,
-      opacity: 0,
       duration: 0.4,
       stagger: 0.04,
       ease: 'power2.out',
       delay: 0.15,
+      clearProps: 'transform',
     });
     gsap.from('#riskBanner', {
       scale: 0.97,
-      opacity: 0,
       duration: 0.4,
       ease: 'back.out(1.3)',
+      clearProps: 'transform',
     });
   }
 

@@ -78,12 +78,34 @@
       <!-- KI-REVIEW PANEL -->
       <div id="aiReviewPanel" style="display:none" class="card ai-review-card">
         <div class="ai-review-header">
-          <span class="ai-review-title">&#x1F916; KI-Forensikgutachten &mdash; DeepSeek V3</span>
+          <span class="ai-review-title">&#x1F916; KI-Forensikgutachten &mdash; Gemma 4</span>
           <button class="btn btn-ghost btn-sm" onclick="document.getElementById('aiReviewPanel').style.display='none'">&#x2715;</button>
         </div>
-        <div id="aiReviewLoading" style="display:none" class="ai-review-loading">
-          <div class="ai-spinner"></div>
-          <span>DeepSeek V3 analysiert&hellip; (kann bis zu 2 Min. dauern)</span>
+        <div id="aiReviewLoading" style="display:none" class="ai-review-loading-v2">
+          <!-- Stage 1: Quick Impression (8B) -->
+          <div class="ai-stage" id="aiStagePrelim">
+            <div class="ai-stage-head">
+              <div class="ai-spinner" id="aiPrelimSpinner"></div>
+              <span class="ai-stage-label">Erste Einsch&auml;tzung &mdash; Gemma 4 &middot; 8B</span>
+              <span class="ai-stage-status" id="aiPrelimStatus">&hellip;</span>
+            </div>
+            <div id="aiPrelimText" class="ai-prelim-text"></div>
+          </div>
+          <!-- Stage 2: Deep Review (26B) -->
+          <div class="ai-stage ai-stage-pending" id="aiStageDeep">
+            <div class="ai-stage-head">
+              <div class="ai-spinner ai-spinner-paused" id="aiDeepSpinner"></div>
+              <span class="ai-stage-label">Tiefen-Gutachten &mdash; Gemma 4 &middot; 26B</span>
+              <span class="ai-stage-status" id="aiDeepStatus">wartet&hellip;</span>
+            </div>
+            <div class="ai-progress-wrap">
+              <div class="ai-progress"><div class="ai-progress-bar" id="aiDeepBar"></div></div>
+              <div class="ai-progress-meta">
+                <span id="aiDeepTimer">0:00</span>
+                <span class="ai-progress-eta">&Oslash; 3&ndash;5 Min</span>
+              </div>
+            </div>
+          </div>
         </div>
         <div id="aiReviewContent" style="display:none">
 
@@ -826,7 +848,7 @@
 
 <script src="/static/js/charts.js?v=7.9"></script>
 <script src="/static/js/forensic-context.js?v=7.9"></script>
-<script src="/static/js/results.js?v=7.9"></script>
+<script src="/static/js/results.js?v=8.0"></script>
 <script src="/static/js/chat.js?v=7.9"></script>
 <script src="/static/js/dashboard.js?v=7.9"></script>
 {% endblock %}

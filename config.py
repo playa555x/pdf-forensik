@@ -107,6 +107,15 @@ VIRUSTOTAL_API_KEY = os.environ.get("VT_API_KEY", "")   # leer = deaktiviert
 VIRUSTOTAL_API_URL = "https://www.virustotal.com/api/v3"
 CLAMAV_SOCKET     = os.environ.get("CLAMAV_SOCKET", "/var/run/clamav/clamd.ctl")
 
+# KI-Backend — lokales Ollama (OpenAI-kompatibler Endpoint)
+OLLAMA_BASE_URL    = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_API_URL     = f"{OLLAMA_BASE_URL}/v1/chat/completions"
+# Review = tiefe forensische Bewertung → großes Reasoning-Modell (26B, Q8_0)
+OLLAMA_REVIEW_MODEL = os.environ.get("OLLAMA_REVIEW_MODEL", "gemma4-heretic:latest")
+# Chat = schnelle Interaktion → kleines Modell (7.5B, Q8_0, passt voll in VRAM)
+OLLAMA_CHAT_MODEL   = os.environ.get("OLLAMA_CHAT_MODEL", "igorls/gemma-4-E4B-it-heretic-GGUF:latest")
+OLLAMA_TIMEOUT      = float(os.environ.get("OLLAMA_TIMEOUT", "600"))
+
 # Bekannte A4-Dimensionen in Punkten (72 pt/inch)
 A4_WIDTH_PT  = 595.28
 A4_HEIGHT_PT = 841.89

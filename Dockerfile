@@ -7,6 +7,16 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # pikepdf / qpdf
     libqpdf-dev \
+    qpdf \
+    binwalk \
+    curl \
+    tesseract-ocr \
+    tesseract-ocr-deu \
+    tesseract-ocr-eng \
+    libimage-exiftool-perl \
+    poppler-utils \
+    libgl1 \
+    libglib2.0-0 \
     # Pillow
     libjpeg-dev \
     libpng-dev \
@@ -52,13 +62,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Playwright Chromium installieren
-RUN playwright install chromium
+RUN pip install --no-deps peepdf==0.4.2 jsbeautifier==1.6.2 pythonaes==1.0 && playwright install chromium
 
 # App-Code
 COPY . .
 
 # Verzeichnisse anlegen
-RUN mkdir -p uploads extracted_images generated_reports
+RUN mkdir -p uploads extracted_images generated_reports tools && (curl -sL -o tools/mpeepdf.py https://raw.githubusercontent.com/Tholep/mpeepdf/master/peepdf.py || curl -sL -o tools/mpeepdf.py https://raw.githubusercontent.com/jesparza/peepdf/master/peepdf.py || true)
 
 # Host auf 0.0.0.0 für Container (Render setzt PORT env var)
 ENV HOST=0.0.0.0

@@ -1,3 +1,14 @@
+
+function _getAnalysisProfile() {
+  const sel = document.querySelector('input[name="analysis_profile"]:checked');
+  return sel ? sel.value : 'standard';
+}
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.name === 'analysis_profile') {
+    document.querySelectorAll('.profile-opt').forEach(el => el.classList.remove('active'));
+    if (e.target.parentElement) e.target.parentElement.classList.add('active');
+  }
+});
 /**
  * app.js — Upload-Handler, Fortschrittsbalken, globale Helfer
  */
@@ -131,7 +142,7 @@ async function handleFile(file) {
   formData.append('file', file);
 
   try {
-    const resp = await fetch('/analyze', { method: 'POST', body: formData });
+    const resp = await fetch('/analyze?profile=' + _getAnalysisProfile(), { method: 'POST', body: formData });
     const data = await resp.json();
 
     if (!resp.ok) {
@@ -298,7 +309,7 @@ async function runBatchAnalysis() {
     formData.append('file', _batchFiles[i]);
 
     try {
-      const resp = await fetch('/analyze', { method: 'POST', body: formData });
+      const resp = await fetch('/analyze?profile=' + _getAnalysisProfile(), { method: 'POST', body: formData });
       const data = await resp.json();
 
       if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
@@ -398,6 +409,100 @@ if (btnClearBatch) {
 // Letztes KI-Review-Ergebnis speichern (für Sprachwechsel)
 var _lastAiReviewLang = null;
 
+// Preliminary als sichtbares Erst-Gutachten rendern — ersetzt die
+// Loading-Stages und zeigt daneben einen Badge dass die Tiefenanalyse läuft.
+function _renderPreliminaryAsResult(text) {
+  const panel   = document.getElementById('aiReviewPanel');
+  const loading = document.getElementById('aiReviewLoading');
+  const content = document.getElementById('aiReviewContent');
+  if (!panel || !loading || !content) return;
+
+  loading.style.display = 'none';
+
+  let box = document.getElementById('aiPrelimResult');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'aiPrelimResult';
+    box.className = 'ai-prelim-result';
+
+    const head = document.createElement('div');
+    head.className = 'ai-prelim-result-head';
+
+    const badge = document.createElement('span');
+    badge.className = 'ai-prelim-badge';
+    badge.textContent = 'Erst-Einschätzung · Gemma 4 · 8B';
+    head.appendChild(badge);
+
+    const status = document.createElement('span');
+    status.className = 'ai-prelim-deep-status';
+    status.id = 'aiPrelimDeepStatus';
+
+    const spin = document.createElement('span');
+    spin.className = 'ai-mini-spinner';
+    status.appendChild(spin);
+
+    const label = document.createElement('span');
+    label.textContent = 'Detail-Gutachten läuft im Hintergrund — ';
+    status.appendChild(label);
+
+    const timer = document.createElement('span');
+    timer.id = 'aiPrelimDeepTimer';
+    timer.textContent = '0:00';
+    status.appendChild(timer);
+
+    const hint = document.createElement('span');
+    hint.className = 'ai-prelim-deep-hint';
+    hint.textContent = ' · Du kannst die Seite verlassen, Ergebnis wird gespeichert.';
+    status.appendChild(hint);
+
+    head.appendChild(status);
+    box.appendChild(head);
+
+    const txt = document.createElement('div');
+    txt.className = 'ai-prelim-result-text';
+    txt.id = 'aiPrelimResultText';
+    box.appendChild(txt);
+
+    content.parentNode.insertBefore(box, content);
+  }
+  const t = document.getElementById('aiPrelimResultText');
+  if (t) t.textContent = text || '';
+  box.style.display = 'block';
+  content.style.display = 'none';
+}
+
+function _removePreliminaryResult() {
+  const box = document.getElementById('aiPrelimResult');
+  if (box) box.remove();
+}
+
+// Hilfsfunktionen zum Zurücksetzen / Manipulieren des Loading-UIs
+function _resetAiLoadingUI() {
+  _removePreliminaryResult();
+  const prelim = document.getElementById('aiStagePrelim');
+  const deep   = document.getElementById('aiStageDeep');
+  if (prelim) { prelim.classList.remove('ai-stage-done'); prelim.classList.add('ai-stage-active'); }
+  if (deep)   { deep.classList.remove('ai-stage-active','ai-stage-done'); deep.classList.add('ai-stage-pending'); }
+  const prelimText = document.getElementById('aiPrelimText');
+  if (prelimText) prelimText.textContent = '';
+  const prelimStatus = document.getElementById('aiPrelimStatus');
+  if (prelimStatus) prelimStatus.textContent = '…';
+  const deepStatus = document.getElementById('aiDeepStatus');
+  if (deepStatus) deepStatus.textContent = 'wartet…';
+  const deepTimer = document.getElementById('aiDeepTimer');
+  if (deepTimer) deepTimer.textContent = '0:00';
+  const deepBar = document.getElementById('aiDeepBar');
+  if (deepBar) deepBar.style.width = '0%';
+  const deepSpinner = document.getElementById('aiDeepSpinner');
+  if (deepSpinner) deepSpinner.classList.add('ai-spinner-paused');
+}
+
+function _fmtTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
 async function requestAiReview() {
   if (!currentAnalysisId) return;
 
@@ -405,31 +510,165 @@ async function requestAiReview() {
   const loading = document.getElementById('aiReviewLoading');
   const content = document.getElementById('aiReviewContent');
 
-  // Alte Fehlermeldungen entfernen
   panel.querySelectorAll('.alert-error').forEach(el => el.remove());
 
   panel.style.display   = 'block';
   loading.style.display = 'flex';
   content.style.display = 'none';
+  _resetAiLoadingUI();
 
-  // Scroll to panel
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  try {
-    const lang = (typeof getLang === 'function') ? getLang() : 'de';
-    const res = await fetch(`/ai-review/${currentAnalysisId}?lang=${lang}`, { method: 'POST' });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Unbekannter Fehler');
-    }
-    const review = await res.json();
-    _lastAiReviewLang = lang;
-    _renderAiReview(review);
-  } catch (e) {
-    loading.style.display = 'none';
-    content.style.display = 'none';
-    panel.innerHTML += `<div class="alert alert-error" style="margin-top:8px"><span class="alert-icon">\u26A0</span> KI-Fehler: ${e.message}</div>`;
+  const lang = (typeof getLang === 'function') ? getLang() : 'de';
+  const url  = `/ai-review/${currentAnalysisId}/stream?lang=${lang}`;
+
+  // Elemente cachen
+  const prelimText   = document.getElementById('aiPrelimText');
+  const prelimStatus = document.getElementById('aiPrelimStatus');
+  const prelimSpinner= document.getElementById('aiPrelimSpinner');
+  const prelimStage  = document.getElementById('aiStagePrelim');
+  const deepStage    = document.getElementById('aiStageDeep');
+  const deepStatus   = document.getElementById('aiDeepStatus');
+  const deepTimer    = document.getElementById('aiDeepTimer');
+  const deepBar      = document.getElementById('aiDeepBar');
+  const deepSpinner  = document.getElementById('aiDeepSpinner');
+
+  let deepStartedAt = null;
+  let etaSeconds    = 300;
+  let clientTimerId = null;
+
+  function startClientTimer() {
+    if (clientTimerId) clearInterval(clientTimerId);
+    clientTimerId = setInterval(() => {
+      if (!deepStartedAt) return;
+      const elapsed = (Date.now() - deepStartedAt) / 1000;
+      const fmt = _fmtTime(elapsed);
+      deepTimer.textContent = fmt;
+      const prelimTimer = document.getElementById('aiPrelimDeepTimer');
+      if (prelimTimer) prelimTimer.textContent = fmt;
+      const pct = Math.min(95, (elapsed / etaSeconds) * 100);
+      deepBar.style.width = pct.toFixed(1) + '%';
+    }, 500);
   }
+  function stopClientTimer() {
+    if (clientTimerId) { clearInterval(clientTimerId); clientTimerId = null; }
+  }
+
+  const es = new EventSource(url);
+  let gotFinal = false;
+
+  es.addEventListener('cached', () => {
+    // Cache-Hit — Stages überspringen
+    prelimStage.classList.add('ai-stage-done');
+    prelimStatus.textContent = '✓';
+  });
+
+  es.addEventListener('prelim_start', () => {
+    prelimStatus.textContent = 'läuft…';
+  });
+
+  es.addEventListener('prelim', (ev) => {
+    try {
+      const d = JSON.parse(ev.data);
+      if (d.delta) prelimText.textContent += d.delta;
+    } catch {}
+  });
+
+  es.addEventListener('prelim_error', (ev) => {
+    try {
+      const d = JSON.parse(ev.data);
+      prelimText.textContent += `\n[Quick-Impression übersprungen: ${d.error}]`;
+    } catch {}
+  });
+
+  es.addEventListener('prelim_done', () => {
+    // Preliminary fertig — sofort als sichtbares "Erst-Gutachten" rendern,
+    // Deep läuft parallel im Hintergrund weiter.
+    prelimStage.classList.remove('ai-stage-active');
+    prelimStage.classList.add('ai-stage-done');
+    prelimSpinner.classList.add('ai-spinner-paused');
+    prelimStatus.textContent = '✓';
+    _renderPreliminaryAsResult(prelimText.textContent);
+  });
+
+  es.addEventListener('deep_start', (ev) => {
+    try {
+      const d = JSON.parse(ev.data);
+      if (d.eta_seconds) etaSeconds = d.eta_seconds;
+    } catch {}
+    deepStartedAt = Date.now();
+    startClientTimer();
+  });
+
+  es.addEventListener('deep_tick', (ev) => {
+    // Server-Heartbeat — wir nutzen eigenen Client-Timer, aber setzen
+    // den Balken hiernach nochmal sauber (falls Tab im Hintergrund).
+    try {
+      const d = JSON.parse(ev.data);
+      if (typeof d.elapsed_seconds === 'number' && deepStartedAt == null) {
+        deepStartedAt = Date.now() - d.elapsed_seconds * 1000;
+        startClientTimer();
+      }
+    } catch {}
+  });
+
+  es.addEventListener('cache_error', (ev) => {
+    console.warn('Cache-Fehler (Review wird trotzdem angezeigt):', ev.data);
+  });
+
+  es.addEventListener('final', (ev) => {
+    gotFinal = true;
+    stopClientTimer();
+    es.close();
+    try {
+      const review = JSON.parse(ev.data);
+      if (review.error && !review.available) {
+        loading.style.display = 'none';
+        _removePreliminaryResult();
+        const errDiv = document.createElement('div');
+        errDiv.className = 'alert alert-error';
+        errDiv.style.marginTop = '8px';
+        errDiv.textContent = '⚠ KI-Fehler: ' + review.error;
+        panel.appendChild(errDiv);
+        return;
+      }
+      // Preliminary entfernen, Final-Review rendern
+      _removePreliminaryResult();
+      loading.style.display = 'none';
+      _lastAiReviewLang = lang;
+      _renderAiReview(review);
+    } catch (e) {
+      loading.style.display = 'none';
+      const errDiv = document.createElement('div');
+      errDiv.className = 'alert alert-error';
+      errDiv.style.marginTop = '8px';
+      errDiv.textContent = '⚠ Parse-Fehler: ' + e.message;
+      panel.appendChild(errDiv);
+    }
+  });
+
+  es.onerror = () => {
+    if (gotFinal) return; // normaler Close nach Final
+    // Wenn Preliminary schon gerendert ist: Tiefenanalyse läuft serverseitig
+    // als Background-Task weiter und wird beim nächsten Öffnen aus dem Cache
+    // ausgeliefert. Nur Status aktualisieren, keine Fehlermeldung.
+    const prelimBox = document.getElementById('aiPrelimResult');
+    if (prelimBox) {
+      stopClientTimer();
+      es.close();
+      const status = document.getElementById('aiPrelimDeepStatus');
+      if (status) status.textContent = '↻ Tiefenanalyse läuft serverseitig weiter — Seite später erneut öffnen.';
+      return;
+    }
+    stopClientTimer();
+    es.close();
+    loading.style.display = 'none';
+    const errDiv = document.createElement('div');
+    errDiv.className = 'alert alert-error';
+    errDiv.style.marginTop = '8px';
+    errDiv.textContent = '⚠ KI-Verbindung unterbrochen. Läuft der Tunnel?';
+    panel.appendChild(errDiv);
+  };
 }
 
 // Gecachtes KI-Review beim Laden einer Analyse sofort anzeigen
@@ -438,7 +677,15 @@ async function _loadCachedAiReview(analysisId) {
   const lang = (typeof getLang === 'function') ? getLang() : 'de';
   try {
     const res = await fetch(`/ai-review/${analysisId}?lang=${lang}`, { method: 'GET' });
-    if (!res.ok) return; // 404 = noch kein Review gespeichert
+    if (res.status === 404) {
+      // Kein Cache -> sofort generieren (Auto-Run)
+      console.log('[AI-Review] Kein Cache, starte Auto-Generierung...');
+      if (typeof requestAiReview === 'function') {
+        await requestAiReview();
+      }
+      return;
+    }
+    if (!res.ok) return;
     const review = await res.json();
     const panel = document.getElementById('aiReviewPanel');
     if (!panel) return;

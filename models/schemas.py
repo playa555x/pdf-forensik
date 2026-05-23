@@ -652,6 +652,120 @@ class PrinterForensicsResult(BaseModel):
     anomalies: List[Anomaly] = Field(default_factory=list)
 
 
+
+
+# ---- Open-Source Forensics (peepdf/pdfid/pdf-parser/qpdf/binwalk/PyMuPDF) ---
+
+class OpenSourceForensicsResult(BaseModel):
+    pdfid: Dict[str, Any] = Field(default_factory=dict)
+    pdf_parser_stats: Dict[str, Any] = Field(default_factory=dict)
+    pdf_parser_orphans: Dict[str, Any] = Field(default_factory=dict)
+    qpdf_qdf: Dict[str, Any] = Field(default_factory=dict)
+    binwalk: Dict[str, Any] = Field(default_factory=dict)
+    pymupdf_lowlevel: Dict[str, Any] = Field(default_factory=dict)
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
+
+
+# ---- Tier 1 Erweiterung (ExifTool, OCR, mpeepdf, Copy-Move, Annotation) ----
+
+class ExifToolResult(BaseModel):
+    raw_tags: Dict[str, Any] = Field(default_factory=dict)
+    xmp_history: List[Any] = Field(default_factory=list)
+    producer: Optional[str] = None
+    creator_tool: Optional[str] = None
+    document_id: Optional[str] = None
+    instance_id: Optional[str] = None
+    original_document_id: Optional[str] = None
+    derived_from: Optional[Any] = None
+    tag_count: int = 0
+    error: Optional[str] = None
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
+
+class OCRTextDiffResult(BaseModel):
+    pages: List[Dict[str, Any]] = Field(default_factory=list)
+    total_embedded_tokens: int = 0
+    total_ocr_tokens: int = 0
+    avg_similarity: float = 1.0
+    error: Optional[str] = None
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
+
+class MpeepdfResult(BaseModel):
+    raw: Dict[str, Any] = Field(default_factory=dict)
+    vulnerabilities: List[str] = Field(default_factory=list)
+    suspicious_elements: List[str] = Field(default_factory=list)
+    cve_references: List[str] = Field(default_factory=list)
+    encryption_info: List[str] = Field(default_factory=list)
+    error: Optional[str] = None
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
+
+class CopyMoveResult(BaseModel):
+    pages: List[Dict[str, Any]] = Field(default_factory=list)
+    total_match_clusters: int = 0
+    error: Optional[str] = None
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
+
+class AnnotationForensicsResult(BaseModel):
+    annotation_count: int = 0
+    annotations: List[Dict[str, Any]] = Field(default_factory=list)
+    orphan_count: int = 0
+    unique_authors: List[str] = Field(default_factory=list)
+    timeline: List[Dict[str, Any]] = Field(default_factory=list)
+    error: Optional[str] = None
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
+
+
+# ---- Tier 2 HF Erweiterung (YOLO Signature, TrOCR Handwriting) -----------
+
+class SignatureDetectorResult(BaseModel):
+    detections: List[Dict[str, Any]] = Field(default_factory=list)
+    duplicates: List[Dict[str, Any]] = Field(default_factory=list)
+    total_signatures: int = 0
+    error: Optional[str] = None
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
+
+class HandwritingOCRResult(BaseModel):
+    results: List[Dict[str, Any]] = Field(default_factory=list)
+    total_processed: int = 0
+    empty_count: int = 0
+    skipped: Optional[str] = None
+    error: Optional[str] = None
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
+
+
+# ---- Tier 3 + 4 (LayoutLMv3, Splicing, MLLM) -----------------------------
+
+class LayoutConsistencyResult(BaseModel):
+    pages: List[Dict[str, Any]] = Field(default_factory=list)
+    page_count: int = 0
+    error: Optional[str] = None
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
+
+class SplicingDetectorResult(BaseModel):
+    images_analyzed: List[Dict[str, Any]] = Field(default_factory=list)
+    total_images: int = 0
+    error: Optional[str] = None
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
+
+class MLLMReasonerResult(BaseModel):
+    manipulation_score: int = 0
+    verdict: Optional[str] = None
+    key_correlations: List[str] = Field(default_factory=list)
+    critical_findings: List[str] = Field(default_factory=list)
+    recommended_next_steps: List[str] = Field(default_factory=list)
+    raw_response: Optional[str] = None
+    error: Optional[str] = None
+    anomalies: List[Anomaly] = Field(default_factory=list)
+
 # ---- Gesamt-Ergebnis --------------------------------------------------------
 
 class AnalysisResult(BaseModel):
@@ -719,6 +833,18 @@ class AnalysisResult(BaseModel):
     object_graph: Optional[ObjectGraphResult] = None
     cross_doc_fingerprint: Optional[CrossDocFingerprintResult] = None
     printer_forensics: Optional[PrinterForensicsResult] = None
+    opensource_forensics: Optional[OpenSourceForensicsResult] = None
+    exiftool: Optional[ExifToolResult] = None
+    ocr_text_diff: Optional[OCRTextDiffResult] = None
+    mpeepdf: Optional[MpeepdfResult] = None
+    copy_move: Optional[CopyMoveResult] = None
+    annotation_forensics: Optional[AnnotationForensicsResult] = None
+    hf_signatures: Optional[SignatureDetectorResult] = None
+    hf_handwriting: Optional[HandwritingOCRResult] = None
+    hf_layout: Optional[LayoutConsistencyResult] = None
+    splicing: Optional[SplicingDetectorResult] = None
+    mllm_reasoning: Optional[MLLMReasonerResult] = None
+    profile: Optional[str] = None
 
 
 # ---- Verlauf ----------------------------------------------------------------

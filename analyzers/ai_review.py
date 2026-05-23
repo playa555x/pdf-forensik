@@ -1,23 +1,23 @@
 """
-AI-Review Analyzer — Forensische Bewertung per DeepSeek R1 via Featherless API.
+AI-Review Analyzer — Forensische Bewertung per lokalem Ollama (Gemma4).
 
-Sendet die aggregierten Analyseergebnisse an das KI-Modell und erhält eine
-umfassende forensische Einschätzung mit Verdict, Begründung, Empfehlungen,
+Sendet die aggregierten Analyseergebnisse an das lokale Gemma4-Modell
+(OpenAI-kompatibler Ollama-Endpoint) und erhält eine umfassende
+forensische Einschätzung mit Verdict, Begründung, Empfehlungen,
 Dokumenteninhalt-Bewertung und weiterführenden Analyse-Vorschlägen.
 """
 from __future__ import annotations
 
 import json
-import os
 import re
-from typing import Any, Dict
+from typing import Any, AsyncIterator, Dict
 
 import httpx
 
-# Featherless API — OpenAI-kompatibel
-FEATHERLESS_API_URL = "https://api.featherless.ai/v1/chat/completions"
-FEATHERLESS_API_KEY = os.environ.get("FEATHERLESS_API_KEY", "")
-FEATHERLESS_MODEL = "deepseek-ai/DeepSeek-V3-0324"
+from config import OLLAMA_API_URL, OLLAMA_REVIEW_MODEL, OLLAMA_CHAT_MODEL, OLLAMA_TIMEOUT
+
+# Rückwärtskompatibilität — bestehender Code unten nutzt OLLAMA_MODEL
+OLLAMA_MODEL = OLLAMA_REVIEW_MODEL
 
 _SYSTEM_PROMPT_DE = """\
 Du bist ein weltweit führender PDF-Forensik-Gutachter und Sachverständiger für digitale Dokumentenprüfung
@@ -496,7 +496,7 @@ def _extract_json_from_response(content: str) -> dict:
     # Erst versuchen direkt zu parsen
     content = content.strip()
 
-    # DeepSeek R1 kann <think>...</think> Tags haben — entfernen
+    # Reasoning-Modelle können <think>...</think> Tags enthalten — entfernen
     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
 
     try:
@@ -526,7 +526,7 @@ def _extract_json_from_response(content: str) -> dict:
 
 async def run_ai_review(analysis_data: Dict[str, Any], lang: str = "de") -> Dict[str, Any]:
     """
-    Sendet Analysedaten an Featherless/DeepSeek R1 und gibt strukturiertes Review zurück.
+    Sendet Analysedaten an das lokale Ollama-Modell (Gemma4) und gibt strukturiertes Review zurück.
 
     Returns:
         Dict mit keys: verdict, confidence, zusammenfassung, hauptbefunde,
@@ -534,63 +534,60 @@ async def run_ai_review(analysis_data: Dict[str, Any], lang: str = "de") -> Dict
                        risiko_erklaerung, weitere_tests, dokument_inhalt_bewertung,
                        model, error (nur bei Fehler)
     """
-    if not FEATHERLESS_API_KEY:
-        return {"error": "Kein FEATHERLESS_API_KEY konfiguriert.", "available": False}
-
     user_prompt = _build_user_prompt(analysis_data, lang=lang)
 
     headers = {
-        "Authorization": f"Bearer {FEATHERLESS_API_KEY}",
+        "Authorization": "Bearer ollama",  # Ollama ignoriert den Token, Header muss aber existieren
         "Content-Type": "application/json",
     }
 
     payload = {
-        "model": FEATHERLESS_MODEL,
+        "model": OLLAMA_MODEL,
         "messages": [
             {"role": "system", "content": _get_system_prompt(lang)},
             {"role": "user", "content": user_prompt},
         ],
         "max_tokens": 8192,
         "temperature": 0.3,
+        "response_format": {"type": "json_object"},
     }
 
     content = ""
-    max_retries = 3
+    max_retries = 2
     last_error = ""
 
     for attempt in range(max_retries):
         try:
-            async with httpx.AsyncClient(timeout=300.0) as client:
+            async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
                 response = await client.post(
-                    FEATHERLESS_API_URL, headers=headers, json=payload
+                    OLLAMA_API_URL, headers=headers, json=payload
                 )
-
-                # Bei 429 (Rate-Limit) warten und retry
-                if response.status_code == 429 and attempt < max_retries - 1:
-                    import asyncio
-                    wait = 10 * (attempt + 1)
-                    await asyncio.sleep(wait)
-                    continue
-
                 response.raise_for_status()
 
             data = response.json()
             content = data["choices"][0]["message"]["content"]
 
-            # JSON aus Antwort parsen (robust gegen Markdown-Blöcke und <think>-Tags)
             review = _extract_json_from_response(content)
-            review["model"] = FEATHERLESS_MODEL
+            review["model"] = OLLAMA_MODEL
             review["available"] = True
             return review
 
         except httpx.HTTPStatusError as e:
-            last_error = f"API-Fehler {e.response.status_code}: {e.response.text[:500]}"
-            if e.response.status_code == 429 and attempt < max_retries - 1:
-                import asyncio
-                await asyncio.sleep(10 * (attempt + 1))
-                continue
+            last_error = f"Ollama-Fehler {e.response.status_code}: {e.response.text[:500]}"
             return {"error": last_error, "available": False}
+        except httpx.ConnectError:
+            return {
+                "error": f"Ollama nicht erreichbar unter {OLLAMA_API_URL}. Läuft der Ollama-Dienst?",
+                "available": False,
+            }
         except json.JSONDecodeError as e:
+            if attempt < max_retries - 1:
+                # Modell hat invalides JSON geliefert — einmal retry mit härterem Hinweis
+                payload["messages"][-1]["content"] += (
+                    "\n\nWICHTIG: Antworte AUSSCHLIESSLICH mit einem einzigen, validen JSON-Objekt. "
+                    "Kein Markdown, kein erklärender Text davor oder danach."
+                )
+                continue
             return {
                 "error": f"KI-Antwort konnte nicht als JSON geparst werden: {e}",
                 "raw_response": content[:2000] if content else "",
@@ -598,13 +595,118 @@ async def run_ai_review(analysis_data: Dict[str, Any], lang: str = "de") -> Dict
             }
         except Exception as e:
             last_error = str(e)
-            if attempt < max_retries - 1:
-                import asyncio
-                await asyncio.sleep(5)
-                continue
             return {
                 "error": f"Unerwarteter Fehler: {last_error}",
                 "available": False,
             }
 
     return {"error": f"Alle {max_retries} Versuche fehlgeschlagen: {last_error}", "available": False}
+
+
+# ───────── Quick-Impression (schnelles 8B-Modell, Streaming) ─────────
+
+_QUICK_SYS_DE = (
+    "Du bist ein PDF-Forensik-Sachverständiger. Gib eine KURZE Erst-Einschätzung "
+    "(4-6 Sätze, Fließtext, kein JSON). Nenne: vermutlicher Dokumenttyp, die "
+    "auffälligsten Befunde, vorläufige Tendenz (echt / verdächtig / unklar). "
+    "Schreibe so dass ein Laie es versteht. Schließe mit dem Satz: "
+    "'Die tiefe forensische Analyse läuft jetzt — sie dauert etwa 3-5 Minuten.'"
+)
+_QUICK_SYS_EN = (
+    "You are a PDF forensics expert. Give a SHORT initial impression "
+    "(4-6 sentences, plain text, no JSON). State: likely document type, most "
+    "notable findings, preliminary tendency (genuine / suspicious / unclear). "
+    "Write for a non-technical reader. End with: "
+    "'The deep forensic analysis is running now — it will take about 3-5 minutes.'"
+)
+
+
+def _build_quick_prompt(analysis_data: Dict[str, Any], lang: str) -> str:
+    meta = analysis_data.get("metadata", {}) or {}
+    anomalies = (analysis_data.get("all_anomalies") or [])[:10]
+
+    if lang == "en":
+        lines = [
+            f"File: {analysis_data.get('filename')}",
+            f"Risk level: {analysis_data.get('risk_level')}",
+            f"Anomaly counts — HIGH: {analysis_data.get('anomaly_count_high', 0)}, "
+            f"MEDIUM: {analysis_data.get('anomaly_count_medium', 0)}, "
+            f"LOW: {analysis_data.get('anomaly_count_low', 0)}",
+            f"Author: {meta.get('author')}",
+            f"Title: {meta.get('title')}",
+            f"Producer: {meta.get('producer')}",
+            f"Creator: {meta.get('creator')}",
+            f"Pages: {meta.get('page_count')}",
+            "Top findings:",
+        ]
+    else:
+        lines = [
+            f"Datei: {analysis_data.get('filename')}",
+            f"Risiko-Level: {analysis_data.get('risk_level')}",
+            f"Anomalien — HOCH: {analysis_data.get('anomaly_count_high', 0)}, "
+            f"MITTEL: {analysis_data.get('anomaly_count_medium', 0)}, "
+            f"NIEDRIG: {analysis_data.get('anomaly_count_low', 0)}",
+            f"Autor: {meta.get('author')}",
+            f"Titel: {meta.get('title')}",
+            f"Producer: {meta.get('producer')}",
+            f"Creator: {meta.get('creator')}",
+            f"Seiten: {meta.get('page_count')}",
+            "Top-Befunde:",
+        ]
+    for a in anomalies:
+        sev = a.get("severity") if isinstance(a, dict) else getattr(a, "severity", "?")
+        cat = a.get("category") if isinstance(a, dict) else getattr(a, "category", "?")
+        msg = a.get("message") if isinstance(a, dict) else getattr(a, "message", "?")
+        lines.append(f"  - [{sev}] {cat}: {msg}")
+    return "\n".join(lines)
+
+
+async def stream_quick_impression(
+    analysis_data: Dict[str, Any], lang: str = "de"
+) -> AsyncIterator[str]:
+    """
+    Streamt eine kurze Erst-Einschätzung vom kleinen 8B-Chat-Modell.
+    Yields einzelne Text-Deltas (keine JSON-Struktur, reiner Fließtext).
+    """
+    payload = {
+        "model": OLLAMA_CHAT_MODEL,
+        "messages": [
+            {"role": "system", "content": _QUICK_SYS_EN if lang == "en" else _QUICK_SYS_DE},
+            {"role": "user", "content": _build_quick_prompt(analysis_data, lang)},
+        ],
+        "stream": True,
+        "max_tokens": 800,
+        "temperature": 0.4,
+    }
+    headers = {"Authorization": "Bearer ollama", "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
+        async with client.stream("POST", OLLAMA_API_URL, json=payload, headers=headers) as resp:
+            in_reasoning = False
+            async for line in resp.aiter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                data = line[6:]
+                if data == "[DONE]":
+                    return
+                try:
+                    chunk = json.loads(data)
+                    d = chunk["choices"][0].get("delta") or {}
+                    # Ollama OpenAI-compat liefert bei Reasoning-Modellen (gemma4-heretic)
+                    # zunächst NUR das "reasoning"-Feld, content bleibt leer bis die
+                    # eigentliche Antwort startet. Wir streamen beides — damit der User
+                    # sofort sieht dass gearbeitet wird.
+                    rsn = d.get("reasoning") or ""
+                    cnt = d.get("content") or ""
+                    if rsn:
+                        if not in_reasoning:
+                            in_reasoning = True
+                            yield "💭 "
+                        yield rsn
+                    if cnt:
+                        if in_reasoning:
+                            in_reasoning = False
+                            yield "\n\n"
+                        yield cnt
+                except Exception:
+                    continue

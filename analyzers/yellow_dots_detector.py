@@ -270,9 +270,9 @@ def detect_yellow_dots(file_path: Path) -> YellowDotsResult:
                 decoded_info = _try_decode_xerox(all_centroids)
                 decoded_info.update(grid_info)
                 anomalies.append(Anomaly(
-                    severity=AnomalySeverity.HIGH,
+                    severity=AnomalySeverity.LOW,
                     category="yellow_dots",
-                    message=f"Machine Identification Code (Xerox MIC) erkannt: {dot_count} Punkte in regelmäßigem Raster",
+                    message=f"Drucker-Fingerprint (MIC) gefunden: {dot_count} Punkte -- Standard bei Farblasern, kein Risk-Indikator per se",
                     detail=f"Drucker-Fingerprint identifiziert. Muster: {grid_info}. Druckserie rückverfolgbar.",
                 ))
             elif dot_count > 0:
@@ -294,9 +294,9 @@ def detect_yellow_dots(file_path: Path) -> YellowDotsResult:
             pattern_type = pop_pattern
             if pop_pattern == "xerox_mic":
                 anomalies.append(Anomaly(
-                    severity=AnomalySeverity.HIGH,
+                    severity=AnomalySeverity.LOW,
                     category="yellow_dots",
-                    message=f"MIC erkannt (via poppler-Rendering): {pop_count} Punkte",
+                    message=f"Drucker-Fingerprint (MIC, via poppler) gefunden: {pop_count} Punkte -- Standard bei Farblasern",
                     detail="Xerox-MIC-Muster in gerenderten Seiten gefunden.",
                 ))
 

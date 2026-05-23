@@ -24,7 +24,7 @@ router = APIRouter()
 
 
 @router.post("/analyze")
-async def analyze_pdf(file: UploadFile = File(...)):
+async def analyze_pdf(file: UploadFile = File(...), profile: str = "standard"):
     """Dokument hochladen und vollständige forensische Analyse starten (PDF, DOCX, XLSX, PPTX, DOC, ODT, JPEG, PNG)."""
 
     filename = file.filename or ""
@@ -57,7 +57,7 @@ async def analyze_pdf(file: UploadFile = File(...)):
             # PDF-Magic-Bytes prüfen
             if not content.startswith(b"%PDF"):
                 raise HTTPException(status_code=400, detail="Datei ist kein gültiges PDF (fehlendes %PDF-Header).")
-            result: AnalysisResult = run_pipeline(tmp_path, filename)
+            result: AnalysisResult = run_pipeline(tmp_path, filename, profile=profile if profile in ("lite","standard","deep") else "standard")
         elif is_office_format(fmt):
             result = run_office_pipeline(tmp_path, filename)
         elif is_image_format(fmt):

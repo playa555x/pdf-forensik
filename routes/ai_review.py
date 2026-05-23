@@ -1,14 +1,36 @@
 """
 POST /ai-review/{analysis_id} — KI-forensische Bewertung (Cache-first).
 GET  /ai-review/{analysis_id} — Gecachtes KI-Review abrufen (ohne neu zu generieren).
+GET  /ai-review/{analysis_id}/stream — SSE-Stream: erst Quick-Impression (8B),
+     dann Tiefen-Gutachten (26B).
 """
 from __future__ import annotations
 
+import asyncio
+import json
+
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
+
 from database.db import get_analysis, save_ai_review, get_ai_review
-from analyzers.ai_review import run_ai_review
+from analyzers.ai_review import run_ai_review, stream_quick_impression
 
 router = APIRouter()
+
+# Pendente Hintergrund-Tasks festhalten, damit der GC sie nicht einkassiert
+# wenn der Client die SSE-Verbindung trennt. Werden nach Fertigstellung auto-entfernt.
+_pending_deep_tasks: set = set()
+
+
+def _spawn_background(coro) -> asyncio.Task:
+    task = asyncio.create_task(coro)
+    _pending_deep_tasks.add(task)
+    task.add_done_callback(_pending_deep_tasks.discard)
+    return task
+
+
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 @router.get("/ai-review/{analysis_id}")
@@ -26,7 +48,7 @@ async def get_cached_ai_review(analysis_id: str, lang: str = Query(default="de")
 @router.post("/ai-review/{analysis_id}")
 async def ai_review(analysis_id: str, lang: str = Query(default="de"), force: bool = Query(default=False)):
     """
-    Sendet eine gespeicherte Analyse an DeepSeek (via Featherless AI).
+    Sendet eine gespeicherte Analyse an das lokale Ollama-Modell (Gemma4).
     Cache-first: Wenn bereits ein Review in dieser Sprache existiert, wird es direkt zurückgegeben.
     Mit ?force=true wird immer neu generiert.
     """
@@ -52,3 +74,86 @@ async def ai_review(analysis_id: str, lang: str = Query(default="de"), force: bo
     await save_ai_review(analysis_id, lang, review)
 
     return review
+
+
+@router.get("/ai-review/{analysis_id}/stream")
+async def stream_ai_review(
+    analysis_id: str,
+    lang: str = Query(default="de"),
+    force: bool = Query(default=False),
+):
+    """
+    Server-Sent-Events Stream:
+      event: cached       → {review}                      (wenn Cache-Hit)
+      event: prelim_start → {}
+      event: prelim       → {delta: "..."}                (stückweise Erst-Einschätzung)
+      event: prelim_done  → {}
+      event: deep_start   → {eta_seconds: 300}
+      event: final        → {review}                      (vollständiges JSON-Gutachten)
+      event: error        → {error: "..."}
+    """
+    result = await get_analysis(analysis_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Analyse nicht gefunden.")
+
+    analysis_data = result.model_dump()
+
+    async def _run_and_cache_deep():
+        """Tiefen-Review ausführen + cachen. Läuft als detached Task weiter,
+        auch wenn der Client die Verbindung trennt."""
+        try:
+            review = await run_ai_review(analysis_data, lang=lang)
+            if review.get("available", True) and "error" not in review:
+                await save_ai_review(analysis_id, lang, review)
+            return review
+        except Exception as e:
+            return {"error": f"Deep-Review-Task-Fehler: {e}", "available": False}
+
+    async def gen():
+        # Cache-Hit? Dann direkt final ausliefern
+        if not force:
+            cached = await get_ai_review(analysis_id, lang)
+            if cached is not None:
+                cached["_cached"] = True
+                yield _sse("cached", cached)
+                yield _sse("final", cached)
+                return
+
+        # Tiefen-Review SOFORT parallel starten (läuft im Hintergrund weiter,
+        # auch wenn der Client die Verbindung trennt — wird beim nächsten
+        # Laden aus dem Cache bedient).
+        # Startet Background-Task der auch nach Client-Disconnect weiterläuft
+        # (Referenz in _pending_deep_tasks verhindert GC).
+        deep_task = _spawn_background(_run_and_cache_deep())
+
+        # Stage 1 — Quick Impression (8B, stream) — parallel zum 26B
+        yield _sse("prelim_start", {})
+        try:
+            async for delta in stream_quick_impression(analysis_data, lang):
+                yield _sse("prelim", {"delta": delta})
+        except Exception as e:
+            yield _sse("prelim_error", {"error": str(e)[:300]})
+        yield _sse("prelim_done", {})
+
+        # Stage 2 — auf Deep-Review warten (läuft schon seit Klick)
+        yield _sse("deep_start", {"eta_seconds": 600})
+
+        elapsed = 0
+        while not deep_task.done():
+            await asyncio.sleep(5)
+            elapsed += 5
+            if not deep_task.done():
+                yield _sse("deep_tick", {"elapsed_seconds": elapsed})
+
+        review = deep_task.result()
+        yield _sse("final", review)
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )

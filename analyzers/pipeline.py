@@ -4,6 +4,7 @@ Analyse-Pipeline: Orchestriert alle 34+ Analyzer.
 from __future__ import annotations
 import uuid
 from pathlib import Path
+from config import IMAGES_DIR
 from datetime import datetime, timezone
 from typing import List
 
@@ -64,6 +65,17 @@ from analyzers.visual_comparator import analyze_visual_render
 from analyzers.object_graph import analyze_object_graph
 from analyzers.cross_doc_fingerprint import create_document_fingerprint
 from analyzers.printer_forensics import analyze_printer_forensics
+from analyzers.opensource_forensics import analyze_opensource_forensics
+from analyzers.exiftool_wrapper import analyze_exiftool
+from analyzers.ocr_text_diff import analyze_ocr_text_diff
+from analyzers.mpeepdf_wrapper import analyze_mpeepdf
+from analyzers.copy_move_detector import analyze_copy_move
+from analyzers.annotation_forensics import analyze_annotation_forensics
+from analyzers.hf_signature_detector import analyze_hf_signatures
+from analyzers.hf_handwriting_ocr import analyze_hf_handwriting
+from analyzers.hf_layout_consistency import analyze_hf_layout_consistency
+from analyzers.splicing_detector import analyze_splicing
+from analyzers.mllm_forgery_reasoner import analyze_mllm_reasoning
 
 
 # Vollständige Liste aller Analyzer-Namen (für Chain of Custody)
@@ -85,6 +97,9 @@ ANALYZER_NAMES = [
     "yara_scanner", "font_forensics", "pdfa_validator",
     "linearization_analyzer", "icc_analyzer", "visual_comparator",
     "object_graph", "cross_doc_fingerprint", "printer_forensics",
+    "opensource_forensics",
+    "exiftool", "ocr_text_diff", "mpeepdf", "copy_move", "annotation_forensics",
+    "hf_signatures", "hf_handwriting", "hf_layout", "splicing", "mllm_reasoning",
 ]
 
 
@@ -100,7 +115,10 @@ def _compute_risk_level(anomalies: List[Anomaly]) -> RiskLevel:
     return RiskLevel.CLEAN
 
 
-def run_pipeline(pdf_path: Path, original_filename: str) -> AnalysisResult:
+def run_pipeline(pdf_path: Path, original_filename: str, profile: str = "standard") -> AnalysisResult:
+    # === Profile-Gating ===
+    _PROFILE_LITE_SKIP = profile == "lite"
+    _PROFILE_FULL = profile in ("standard", "deep")
     analysis_id = str(uuid.uuid4())
     analyzed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -355,6 +373,138 @@ def run_pipeline(pdf_path: Path, original_filename: str) -> AnalysisResult:
         printer_result = PrinterForensicsResult()
 
     # ================================================================
+
+
+    # ================================================================
+    # 36b. Open-Source Forensik-Tools (pdfid/pdf-parser/qpdf/binwalk/PyMuPDF)
+    # ================================================================
+    try:
+        opensource_result = analyze_opensource_forensics(pdf_path, IMAGES_DIR / analysis_id)
+    except Exception as e:
+        print(f'[WARN] Open-Source Forensik fehlgeschlagen: {e}')
+        from models.schemas import OpenSourceForensicsResult as _OSF
+        opensource_result = _OSF()
+
+
+
+    # ================================================================
+    # Tier 1 Erweiterung: ExifTool / OCR / mpeepdf / Copy-Move / Annotation
+    # ================================================================
+    try:
+        exiftool_result = analyze_exiftool(pdf_path)
+    except Exception as e:
+        print(f"[WARN] ExifTool fehlgeschlagen: {e}")
+        from models.schemas import ExifToolResult as _ET
+        exiftool_result = _ET(error=str(e))
+
+    if _PROFILE_LITE_SKIP:
+        from models.schemas import OCRTextDiffResult as _OD
+        ocr_diff_result = _OD(error='skipped (profile=lite)')
+    else:
+        try:
+            ocr_diff_result = analyze_ocr_text_diff(pdf_path)
+        except Exception as e:
+            print(f"[WARN] OCR-Diff fehlgeschlagen: {e}")
+            from models.schemas import OCRTextDiffResult as _OD
+            ocr_diff_result = _OD(error=str(e))
+
+    if _PROFILE_LITE_SKIP:
+        from models.schemas import MpeepdfResult as _MP
+        mpeepdf_result = _MP(error='skipped (profile=lite)')
+    else:
+        try:
+            mpeepdf_result = analyze_mpeepdf(pdf_path)
+        except Exception as e:
+            print(f"[WARN] mpeepdf fehlgeschlagen: {e}")
+            from models.schemas import MpeepdfResult as _MP
+            mpeepdf_result = _MP(error=str(e))
+
+    if _PROFILE_LITE_SKIP:
+        from models.schemas import CopyMoveResult as _CM
+        copy_move_result = _CM(error='skipped (profile=lite)')
+    else:
+        try:
+            copy_move_result = analyze_copy_move(pdf_path)
+        except Exception as e:
+            print(f"[WARN] Copy-Move fehlgeschlagen: {e}")
+            from models.schemas import CopyMoveResult as _CM
+            copy_move_result = _CM(error=str(e))
+
+    try:
+        annot_forensics_result = analyze_annotation_forensics(pdf_path)
+    except Exception as e:
+        print(f"[WARN] Annotation-Forensik fehlgeschlagen: {e}")
+        from models.schemas import AnnotationForensicsResult as _AF
+        annot_forensics_result = _AF(error=str(e))
+
+
+
+    # ================================================================
+    # Tier 2 HF: Signature-Detection + Handwriting-OCR
+    # ================================================================
+    if _PROFILE_LITE_SKIP:
+        from models.schemas import SignatureDetectorResult as _SR
+        sig_result = _SR(error='skipped (profile=lite)')
+    else:
+        try:
+            sig_result = analyze_hf_signatures(pdf_path, IMAGES_DIR / analysis_id / "signatures")
+        except Exception as e:
+            print(f"[WARN] HF Signature-Detector fehlgeschlagen: {e}")
+            from models.schemas import SignatureDetectorResult as _SR
+            sig_result = _SR(error=str(e))
+
+    # Handwriting-OCR conditional auf gefundene Signatur-Crops + profile
+    if _PROFILE_LITE_SKIP:
+        from models.schemas import HandwritingOCRResult as _HR
+        handwriting_result = _HR(skipped='profile=lite')
+    else:
+        try:
+            crop_paths = []
+            if sig_result and sig_result.detections:
+                for d in sig_result.detections:
+                    cp = d.get("crop_path")
+                    if cp:
+                        from pathlib import Path as _P
+                        crop_paths.append(_P(cp))
+            if crop_paths:
+                handwriting_result = analyze_hf_handwriting(crop_paths)
+            else:
+                from models.schemas import HandwritingOCRResult as _HR
+                handwriting_result = _HR(skipped="no signatures detected")
+        except Exception as e:
+            print(f"[WARN] HF Handwriting-OCR fehlgeschlagen: {e}")
+            from models.schemas import HandwritingOCRResult as _HR
+            handwriting_result = _HR(error=str(e))
+
+
+
+    # ================================================================
+    # Tier 3 + 4: LayoutLMv3 / Splicing / MLLM-Reasoning (profile-gated)
+    # ================================================================
+    from models.schemas import (
+        LayoutConsistencyResult as _LCR,
+        SplicingDetectorResult as _SPR,
+        MLLMReasonerResult as _MLR,
+    )
+
+    layout_result = _LCR(error="skipped (profile=" + profile + ")")
+    splicing_result = _SPR(error="skipped (profile=" + profile + ")")
+    mllm_result = _MLR(error="skipped (profile=" + profile + ")")
+
+    if profile in ("standard", "deep"):
+        try:
+            splicing_result = analyze_splicing(pdf_path)
+        except Exception as e:
+            print(f"[WARN] Splicing fehlgeschlagen: {e}")
+            splicing_result = _SPR(error=str(e))
+
+    if profile == "deep":
+        try:
+            layout_result = analyze_hf_layout_consistency(pdf_path)
+        except Exception as e:
+            print(f"[WARN] LayoutLMv3 fehlgeschlagen: {e}")
+            layout_result = _LCR(error=str(e))
+
     # Anomalien aggregieren (Phase 1-4 + Phase 5 + Phase 6)
     # ================================================================
     all_anomalies: List[Anomaly] = []
@@ -373,6 +523,9 @@ def run_pipeline(pdf_path: Path, original_filename: str) -> AnalysisResult:
         yara_result, font_forensics_result, pdfa_result,
         linearization_result, icc_result, visual_result,
         object_graph_result, cross_doc_fp_result, printer_result,
+        opensource_result,
+        exiftool_result, ocr_diff_result, mpeepdf_result, copy_move_result, annot_forensics_result,
+        sig_result, handwriting_result, layout_result, splicing_result,
     ]:
         all_anomalies.extend(result.anomalies)
 
@@ -442,6 +595,17 @@ def run_pipeline(pdf_path: Path, original_filename: str) -> AnalysisResult:
         object_graph=object_graph_result,
         cross_doc_fingerprint=cross_doc_fp_result,
         printer_forensics=printer_result,
+        opensource_forensics=opensource_result,
+        exiftool=exiftool_result,
+        ocr_text_diff=ocr_diff_result,
+        mpeepdf=mpeepdf_result,
+        copy_move=copy_move_result,
+        annotation_forensics=annot_forensics_result,
+        hf_signatures=sig_result,
+        hf_handwriting=handwriting_result,
+        hf_layout=layout_result,
+        splicing=splicing_result,
+        profile=profile,
     )
 
     # ================================================================
@@ -469,6 +633,40 @@ def run_pipeline(pdf_path: Path, original_filename: str) -> AnalysisResult:
     # Risk-Level nochmal berechnen (mit Cross-Analyzer Anomalien)
     significant = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
     analysis_result.risk_level = _compute_risk_level(significant)
+
+
+    # ================================================================
+    # MLLM Reasoning -- nach allen anderen Analyzern, nutzt das Gesamt-Anomalie-Set
+    # ================================================================
+    if profile == "deep":
+        try:
+            from models.schemas import MetadataResult as _MR
+            metadata_summary = {
+                "title": getattr(metadata, "title", None),
+                "creator": getattr(metadata, "creator", None),
+                "producer": getattr(metadata, "producer", None),
+                "creation_date": getattr(metadata, "creation_date_parsed", None),
+                "mod_date": getattr(metadata, "mod_date_parsed", None),
+                "page_count": getattr(metadata, "page_count", None),
+            }
+            exif_tags = getattr(exiftool_result, "raw_tags", {}) or {}
+            mllm_result = analyze_mllm_reasoning(all_anomalies, metadata_summary, exif_tags)
+        except Exception as e:
+            print(f"[WARN] MLLM-Reasoning fehlgeschlagen: {e}")
+            mllm_result = _MLR(error=str(e))
+        all_anomalies.extend(mllm_result.anomalies)
+        analysis_result.mllm_reasoning = mllm_result
+    else:
+        analysis_result.mllm_reasoning = mllm_result
+
+
+    # Risk-Level final-recompute nach MLLM
+    analysis_result.all_anomalies = all_anomalies
+    analysis_result.anomaly_count_high   = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.HIGH)
+    analysis_result.anomaly_count_medium = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.MEDIUM)
+    analysis_result.anomaly_count_low    = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.LOW)
+    significant_final = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
+    analysis_result.risk_level = _compute_risk_level(significant_final)
 
     from analyzers.numpy_sanitizer import sanitize_result
     return sanitize_result(analysis_result)
