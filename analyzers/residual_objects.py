@@ -22,9 +22,15 @@ import pikepdf
 from models.schemas import Anomaly, AnomalySeverity
 
 
-_OBJ_PATTERN    = re.compile(rb"(\d+)\s+0\s+obj\s*(.*?)\s*endobj", re.DOTALL)
+# Bounded quantifiers verhindern catastrophic backtracking auf binary Streams
+# (JPEG/Font-Bytes die zufaellig wie Zahlen/Whitespace aussehen). Vorher
+# konnte das bei bestimmten PDFs minutenlang die CPU blockieren.
+# - Objekt-Nummern in der Praxis <7-stellig
+# - Whitespace zwischen Header-Tokens nur Tab/Space, nicht CR/LF
+# - Body-Length cap 500 KB pro Objekt (deckt 99,9% der realen PDFs ab)
+_OBJ_PATTERN    = re.compile(rb"(\d{1,7})[\t ]{1,4}0[\t ]{1,4}obj\b(.{0,500000}?)\bendobj", re.DOTALL)
 _EOF_PATTERN    = re.compile(rb"%%EOF")
-_STREAM_PATTERN = re.compile(rb"stream\s*(.*?)\s*endstream", re.DOTALL)
+_STREAM_PATTERN = re.compile(rb"\bstream\b(.{0,1000000}?)\bendstream\b", re.DOTALL)
 
 _MAX_CONTENT_PREVIEW = 500  # Byte-Vorschau für verwaiste Objekte
 

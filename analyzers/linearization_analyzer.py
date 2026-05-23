@@ -39,8 +39,9 @@ def analyze_linearization(pdf_path: Path) -> Dict[str, Any]:
         head = data[:4096].decode("latin-1", errors="replace")
 
         # Pattern: obj << /Linearized 1 /L ... /H [...] /O ... /E ... /N ... /T ... >>
+        # Bounded quantifiers gegen catastrophic backtracking
         lin_match = re.search(
-            r'(\d+\s+\d+\s+obj\s*<<[^>]*?/Linearized\s+[\d.]+[^>]*?>>)',
+            r'\b(\d{1,7}[\t ]{1,4}\d{1,5}[\t ]{1,4}obj\s{0,10}<<[^>]{0,2000}?/Linearized\s{0,5}[\d.]{1,10}[^>]{0,2000}?>>)',
             head, re.DOTALL
         )
 

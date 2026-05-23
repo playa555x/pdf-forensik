@@ -165,7 +165,11 @@ def _check_duplicate_object_numbers(pdf_path: Path) -> List[Dict[str, Any]]:
             content = f.read()
 
         # Muster: "N 0 obj" (Objekt-Nummer N, Generation 0)
-        pattern = re.compile(rb"(\d+)\s+0\s+obj")
+        # Bounded quantifiers verhindern catastrophic backtracking auf binary
+        # Streams (JPEG/PNG-Bilder etc.). Vorher konnte \d+\s+0\s+obj bei
+        # bestimmten PDFs minutenlang die CPU blockieren (engineless run_pipeline).
+        # Objekt-Nummern sind in der Praxis <7-stellig, Whitespace nur Tab/Space.
+        pattern = re.compile(rb"\b(\d{1,7})[\t ]{1,4}0[\t ]{1,4}obj\b")
         matches = pattern.findall(content)
 
         counts: Dict[int, int] = {}

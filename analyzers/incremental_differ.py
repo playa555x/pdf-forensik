@@ -113,7 +113,7 @@ def analyze_incremental_diff(pdf_path: Path) -> IncrementalDiffResult:
         else:
             # XRef-Stream: Objekte über Regex finden
             obj_ids = set()
-            for m in re.finditer(rb'(\d+)\s+\d+\s+obj\b', xref_chunk):
+            for m in re.finditer(rb'\b(\d{1,7})[\t ]{1,4}\d{1,5}[\t ]{1,4}obj\b', xref_chunk):
                 obj_ids.add(int(m.group(1)))
 
         revision_objects.append(obj_ids)
@@ -134,7 +134,7 @@ def analyze_incremental_diff(pdf_path: Path) -> IncrementalDiffResult:
 
         # Objekte in dieser Revision (nur das Delta)
         delta_objs = set()
-        for m in re.finditer(rb'(\d+)\s+\d+\s+obj\b', rev_chunk):
+        for m in re.finditer(rb'\b(\d{1,7})[\t ]{1,4}\d{1,5}[\t ]{1,4}obj\b', rev_chunk):
             delta_objs.add(int(m.group(1)))
 
         # Objekte die in der Revision neu geschrieben wurden und auch vorher existierten
@@ -153,8 +153,9 @@ def analyze_incremental_diff(pdf_path: Path) -> IncrementalDiffResult:
         change_details = []
         for obj_id in list(modified)[:10]:
             # Versuche den Objekt-Typ zu bestimmen
+            # Bounded quantifiers + max-body-cap gegen catastrophic backtracking
             pattern = re.compile(
-                rf'{obj_id}\s+\d+\s+obj\s*(.*?)endobj'.encode(),
+                rf'\b{obj_id}[\t ]{{1,4}}\d{{1,5}}[\t ]{{1,4}}obj\b(.{{0,200000}}?)\bendobj\b'.encode(),
                 re.DOTALL
             )
             match = pattern.search(rev_chunk[:500_000])
