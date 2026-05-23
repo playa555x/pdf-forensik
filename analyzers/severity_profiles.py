@@ -120,31 +120,63 @@ def is_hard_high(anomaly: Anomaly) -> bool:
     return anomaly.category in HARD_HIGH_CATEGORIES
 
 
+# Kategorien deren HIGH-Severity bei legitimem Multi-Sig-Workflow ein
+# False-Positive ist (pyhanko bestaetigt: alle Signaturen kryptografisch
+# intakt, nur Signatur-Material zwischen den Revisionen).
+_MULTI_SIG_INTACT_DOWNGRADE = {
+    "shadow_attack",        # mehrere ByteRanges sind in Multi-Sig normal
+    "incremental_updates",  # mehrere Revisionen = mehrere Signatur-Cycles
+    "incremental_diff",     # Catalog-Aenderungen zwischen Sigs sind normal
+    "object_streams",       # doppelte Obj-IDs durch Signatur-Updates
+}
+
+
 def apply_doc_type_profile(
     anomalies: list[Anomaly],
     doc_type: Optional[str],
+    signature_workflow: Optional[str] = None,
 ) -> list[Anomaly]:
     """
-    Wendet die Doc-Typ-spezifischen Downgrades an. Liefert eine NEUE Liste —
-    die Originalanomalien bleiben unveraendert (Pydantic-Modelle sind frozen
-    in pydantic v2 sowieso de-facto immutable).
+    Wendet die Doc-Typ-spezifischen Downgrades an. Liefert eine NEUE Liste.
 
-    - Hard-HIGH-Kategorien werden nie downgegraded.
-    - Pro Anomalie wird die erste passende Regel angewendet.
-    - Eine Regel kann nur NACH UNTEN downgraden (nie aufwerten).
-    - Im detail-Text wird vermerkt, warum heruntergesetzt wurde.
+    Reihenfolge:
+    1. Signatur-Workflow-Downgrades (z.B. multi_sig_intact dampft shadow_attack)
+       — auch fuer Hard-HIGH-Kategorien, weil pyhanko mathematisch beweist
+       dass die Signaturen intakt sind.
+    2. Hard-HIGH-Kategorien (sonst) werden nicht weiter downgegraded.
+    3. Doc-Typ-spezifische Downgrades.
     """
-    if not doc_type or doc_type not in _DOWNGRADE_RULES:
-        return list(anomalies)
-
-    rules = _DOWNGRADE_RULES[doc_type]
     out: list[Anomaly] = []
 
     for a in anomalies:
+        # === 1) Workflow-Kontext: legitimer Multi-Sig ===
+        if (signature_workflow == "multi_sig_intact"
+                and a.category in _MULTI_SIG_INTACT_DOWNGRADE
+                and a.severity != AnomalySeverity.INFO):
+            note = (
+                "  [Multi-Sig-Workflow erkannt: pyhanko bestaetigt alle "
+                "Signaturen kryptografisch intakt — mehrere /ByteRange/EOF/"
+                "Catalog-Aenderungen sind in diesem Kontext erwartbar.]"
+            )
+            out.append(Anomaly(
+                severity=AnomalySeverity.INFO,
+                category=a.category,
+                message=a.message,
+                detail=((a.detail or "") + note).strip(),
+            ))
+            continue
+
+        # === 2) Hard-HIGH (sonst) bleibt unangetastet ===
         if is_hard_high(a):
             out.append(a)
             continue
 
+        # === 3) Doc-Typ-spezifische Downgrades ===
+        if not doc_type or doc_type not in _DOWNGRADE_RULES:
+            out.append(a)
+            continue
+
+        rules = _DOWNGRADE_RULES[doc_type]
         new_sev: Optional[AnomalySeverity] = None
         for cat, kw, target_sev in rules:
             if a.category != cat:

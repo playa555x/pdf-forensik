@@ -55,6 +55,7 @@ from analyzers.fuzzy_hasher import compute_fuzzy_hashes
 from analyzers.cross_analyzer import analyze_cross_correlations
 from analyzers.chain_of_custody import create_chain_of_custody
 from analyzers.doc_type_classifier import classify_doc_type
+from analyzers.multi_signature_workflow import analyze_multi_signature_workflow
 from analyzers.severity_profiles import apply_doc_type_profile, count_by_class
 from config import (
     RISK_HARD_HIGH_THRESHOLD, RISK_SOFT_HIGH_THRESHOLD,
@@ -112,6 +113,7 @@ ANALYZER_NAMES = [
 def _compute_risk_level(
     anomalies: List[Anomaly],
     doc_type: Optional[str] = None,
+    signature_workflow: Optional[str] = None,
 ) -> RiskLevel:
     """
     Doc-Typ-bewusste Risk-Level-Berechnung.
@@ -125,7 +127,7 @@ def _compute_risk_level(
     3. Soft-HIGH-Cluster (>= RISK_SOFT_HIGH_THRESHOLD) -> HIGH
     4. Sonst MEDIUM/LOW/CLEAN nach Anzahl
     """
-    effective = apply_doc_type_profile(anomalies, doc_type)
+    effective = apply_doc_type_profile(anomalies, doc_type, signature_workflow=signature_workflow)
     c = count_by_class(effective)
 
     if c["hard_high"] >= RISK_HARD_HIGH_THRESHOLD:
@@ -562,7 +564,7 @@ def run_pipeline(pdf_path: Path, original_filename: str, profile: str = "standar
         all_anomalies.extend(steg_result.anomalies)
 
     # ================================================================
-    # Doc-Type-Klassifikation (vor Risk-Level + Cross-Analyzer!)
+    # Doc-Type + Signatur-Workflow-Klassifikation (vor Risk-Level + Cross!)
     # ================================================================
     doc_type_result = classify_doc_type(
         software_fingerprint=software_fp,
@@ -572,8 +574,31 @@ def run_pipeline(pdf_path: Path, original_filename: str, profile: str = "standar
     )
     _doc_type_key = doc_type_result.doc_type
 
-    significant = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
-    risk_level   = _compute_risk_level(significant, doc_type=_doc_type_key)
+    # Signatur-Workflow per pyhanko-Validierung
+    try:
+        from models.schemas import SignatureWorkflowResult as _SWR
+        _swf_raw = analyze_multi_signature_workflow(pdf_path)
+        signature_workflow_result = _SWR(**{k: v for k, v in _swf_raw.items() if k != "error"})
+        if _swf_raw.get("error"):
+            signature_workflow_result.error = _swf_raw["error"]
+    except Exception as e:
+        print(f"[WARN] Multi-Signatur-Workflow-Analyzer fehlgeschlagen: {e}")
+        from models.schemas import SignatureWorkflowResult as _SWR
+        signature_workflow_result = _SWR(workflow="error", error=str(e))
+    _workflow_key = signature_workflow_result.workflow
+
+    # Anomalien aus Signatur-Workflow ins all_anomalies einsammeln
+    all_anomalies.extend(signature_workflow_result.anomalies)
+
+    # === Severity-Profil EINMAL auf all_anomalies anwenden ===
+    # Damit alle Counts + Risk-Berechnungen + UI-Anzeige konsistent die
+    # downgegradet Severities sehen statt der Roh-Severities.
+    all_anomalies = apply_doc_type_profile(
+        all_anomalies, _doc_type_key, signature_workflow=_workflow_key,
+    )
+
+    significant  = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
+    risk_level   = _compute_risk_level(significant)  # Profile schon angewandt
 
     high_count   = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.HIGH)
     medium_count = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.MEDIUM)
@@ -646,12 +671,15 @@ def run_pipeline(pdf_path: Path, original_filename: str, profile: str = "standar
         splicing=splicing_result,
         profile=profile,
         doc_type=doc_type_result,
+        signature_workflow=signature_workflow_result,
     )
 
     # ================================================================
     # 34. Cross-Analyzer Intelligence (braucht das Gesamtergebnis)
     # ================================================================
-    cross_result = analyze_cross_correlations(analysis_result, doc_type=_doc_type_key)
+    cross_result = analyze_cross_correlations(
+        analysis_result, doc_type=_doc_type_key, signature_workflow=_workflow_key,
+    )
     all_anomalies.extend(cross_result.anomalies)
     analysis_result.cross_analyzer = cross_result
 
@@ -664,15 +692,20 @@ def run_pipeline(pdf_path: Path, original_filename: str, profile: str = "standar
     )
     analysis_result.chain_of_custody = coc_result
 
-    # Anomalie-Counts aktualisieren (nach Cross-Analyzer)
+    # Profile auf nachtraeglich von Cross-Analyzer hinzugefuegte Anomalien anwenden
+    all_anomalies = apply_doc_type_profile(
+        all_anomalies, _doc_type_key, signature_workflow=_workflow_key,
+    )
+
+    # Anomalie-Counts aktualisieren (nach Cross-Analyzer + Profile)
     analysis_result.all_anomalies = all_anomalies
     analysis_result.anomaly_count_high = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.HIGH)
     analysis_result.anomaly_count_medium = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.MEDIUM)
     analysis_result.anomaly_count_low = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.LOW)
 
-    # Risk-Level nochmal berechnen (mit Cross-Analyzer Anomalien)
+    # Risk-Level nochmal berechnen (Profile schon angewandt)
     significant = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
-    analysis_result.risk_level = _compute_risk_level(significant, doc_type=_doc_type_key)
+    analysis_result.risk_level = _compute_risk_level(significant)
 
 
     # ================================================================
@@ -706,7 +739,7 @@ def run_pipeline(pdf_path: Path, original_filename: str, profile: str = "standar
     analysis_result.anomaly_count_medium = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.MEDIUM)
     analysis_result.anomaly_count_low    = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.LOW)
     significant_final = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
-    analysis_result.risk_level = _compute_risk_level(significant_final, doc_type=_doc_type_key)
+    analysis_result.risk_level = _compute_risk_level(significant_final)
 
     from analyzers.numpy_sanitizer import sanitize_result
     return sanitize_result(analysis_result)

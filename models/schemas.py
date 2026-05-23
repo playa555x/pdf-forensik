@@ -42,6 +42,22 @@ class DocTypeResult(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
 
 
+class SignatureWorkflowResult(BaseModel):
+    """
+    Klassifiziert das Signatur-Setup (Multi-Sig vs. Shadow-Attack vs. ...).
+    Wird wie DocTypeResult an severity_profiles durchgereicht damit
+    Shadow-Attack-Findings bei legitimer Multi-Sig nicht falsch HIGH bleiben.
+    """
+    workflow: str = "unknown"
+    reasoning: List[str] = Field(default_factory=list)
+    eof_count: int = 0
+    byterange_count: int = 0
+    byteranges: List[Dict[str, Any]] = Field(default_factory=list)
+    signatures: List[Dict[str, Any]] = Field(default_factory=list)
+    anomalies: List[Anomaly] = Field(default_factory=list)
+    error: Optional[str] = None
+
+
 # ---- Hashing ----------------------------------------------------------------
 
 class HashResult(BaseModel):
@@ -859,6 +875,8 @@ class AnalysisResult(BaseModel):
     profile: Optional[str] = None
     # Phase 7 — Doc-Type-Klassifikation fuer kalibriertes Scoring
     doc_type: Optional[DocTypeResult] = None
+    # Phase 7b — Signatur-Workflow-Klassifikation (Multi-Sig vs. Shadow-Attack)
+    signature_workflow: Optional[SignatureWorkflowResult] = None
 
 
 # ---- Verlauf ----------------------------------------------------------------

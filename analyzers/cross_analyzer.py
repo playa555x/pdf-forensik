@@ -175,9 +175,18 @@ def _build_creator_profile(result: AnalysisResult) -> Dict[str, Any]:
     return profile
 
 
-def _find_correlations(result: AnalysisResult) -> List[CorrelationFinding]:
-    """Findet automatische Korrelationen zwischen Analyzer-Ergebnissen."""
+def _find_correlations(
+    result: AnalysisResult,
+    signature_workflow: Optional[str] = None,
+) -> List[CorrelationFinding]:
+    """Findet automatische Korrelationen zwischen Analyzer-Ergebnissen.
+
+    `signature_workflow`: bei 'multi_sig_intact' wird die Korrelation
+    "Signiertes Dokument mit nachtraeglichen Updates" zu INFO degradiert,
+    weil sie in einem legitimen Multi-Sig-Workflow erwartbar ist.
+    """
     correlations: List[CorrelationFinding] = []
+    is_multi_sig_intact = signature_workflow == "multi_sig_intact"
 
     # 1. Creator/Producer-Mismatch + UUID-Zeitdifferenz
     if result.software_fingerprint and result.uuid_decode:
@@ -263,16 +272,31 @@ def _find_correlations(result: AnalysisResult) -> List[CorrelationFinding]:
     # 5. Incremental Updates + Signatur
     if result.incremental_updates and result.signature:
         if result.incremental_updates.revision_count > 1 and result.signature.has_sig_field:
-            correlations.append(CorrelationFinding(
-                title="Signiertes Dokument mit nachträglichen Updates",
-                severity=AnomalySeverity.HIGH,
-                analyzers_involved=["incremental_updates", "signature"],
-                evidence=[
-                    f"Revisionen: {result.incremental_updates.revision_count}",
-                    f"Signatur-Felder: {result.signature.sig_field_names}",
-                ],
-                conclusion="Inkrementelle Updates nach Signatur können die Signaturintegrität gefährden (Shadow Attack)",
-            ))
+            # Bei legitimer Multi-Sig sind genau das die erwarteten Revisionen
+            # — pyhanko hat ja bestaetigt, dass alle Sigs intakt sind.
+            if is_multi_sig_intact:
+                correlations.append(CorrelationFinding(
+                    title="Multi-Signatur-Workflow: mehrere Revisionen vorhanden",
+                    severity=AnomalySeverity.INFO,
+                    analyzers_involved=["incremental_updates", "signature", "signature_workflow"],
+                    evidence=[
+                        f"Revisionen: {result.incremental_updates.revision_count}",
+                        f"Signatur-Felder: {result.signature.sig_field_names}",
+                        "pyhanko bestaetigt: alle Signaturen kryptografisch intakt",
+                    ],
+                    conclusion="Mehrere Revisionen sind in einem Multi-Signatur-Workflow erwartbar — kein Shadow-Attack",
+                ))
+            else:
+                correlations.append(CorrelationFinding(
+                    title="Signiertes Dokument mit nachträglichen Updates",
+                    severity=AnomalySeverity.HIGH,
+                    analyzers_involved=["incremental_updates", "signature"],
+                    evidence=[
+                        f"Revisionen: {result.incremental_updates.revision_count}",
+                        f"Signatur-Felder: {result.signature.sig_field_names}",
+                    ],
+                    conclusion="Inkrementelle Updates nach Signatur können die Signaturintegrität gefährden (Shadow Attack)",
+                ))
 
     # 6. Hidden Text + Redaction (wenn vorhanden)
     if result.hidden_text and result.hidden_text.hidden_blocks:
@@ -328,6 +352,7 @@ def _compute_manipulation_score(
     result: AnalysisResult,
     correlations: List[CorrelationFinding],
     doc_type: Optional[str] = None,
+    signature_workflow: Optional[str] = None,
 ) -> float:
     """
     Berechnet einen Manipulations-Score von 0-100, **Doc-Typ-bewusst**.
@@ -340,8 +365,10 @@ def _compute_manipulation_score(
       100/100 nur weil OCR an stylized text scheitert, waehrend ein PDF mit
       Malware-Signatur weiterhin sofort einen hohen Score bekommt.
     """
-    # Doc-Typ-bewusste Severities anwenden
-    effective_anomalies = apply_doc_type_profile(result.all_anomalies or [], doc_type)
+    # Doc-Typ + Signatur-Workflow bewusste Severities anwenden
+    effective_anomalies = apply_doc_type_profile(
+        result.all_anomalies or [], doc_type, signature_workflow=signature_workflow,
+    )
     counts = count_by_class(effective_anomalies)
 
     score = 0.0
@@ -382,12 +409,14 @@ def _compute_manipulation_score(
 def analyze_cross_correlations(
     result: AnalysisResult,
     doc_type: Optional[str] = None,
+    signature_workflow: Optional[str] = None,
 ) -> CrossAnalyzerResult:
     """Fuehrt die vollstaendige Cross-Analyzer-Korrelation durch.
 
-    `doc_type`: optionaler Dokumenttyp aus `doc_type_classifier`. Wird in das
-    Scoring + Severity-Profil eingesetzt, damit z.B. eine Marketing-Broschuere
-    nicht durch OCR-Mismatches auf 100/100 kippt.
+    `doc_type`:           Dokumenttyp aus doc_type_classifier (Broschuere/Scan/...)
+    `signature_workflow`: Workflow-Klasse aus multi_signature_workflow
+                          (z.B. 'multi_sig_intact' dampft shadow_attack-Findings).
+    Beide werden an Severity-Profil + Scoring durchgereicht.
     """
     anomalies: List[Anomaly] = []
 
@@ -397,11 +426,15 @@ def analyze_cross_correlations(
     # 2. Creator-Profil erstellen
     creator_profile = _build_creator_profile(result)
 
-    # 3. Korrelationen finden
-    correlations = _find_correlations(result)
+    # 3. Korrelationen finden (workflow-bewusst)
+    correlations = _find_correlations(result, signature_workflow=signature_workflow)
 
-    # 4. Manipulations-Score (Doc-Typ-bewusst)
-    manip_score = _compute_manipulation_score(result, correlations, doc_type=doc_type)
+    # 4. Manipulations-Score (Doc-Typ + Signatur-Workflow-bewusst)
+    manip_score = _compute_manipulation_score(
+        result, correlations,
+        doc_type=doc_type,
+        signature_workflow=signature_workflow,
+    )
 
     # Anomalien aus Korrelationen
     for c in correlations:
