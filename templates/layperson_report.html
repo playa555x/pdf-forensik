@@ -49,7 +49,54 @@
   .finding-body { flex: 1; }
   .finding-msg  { font-weight: 500; font-size: 14px; }
   .finding-cat  { font-size: 12px; color: #888; margin-top: 2px; }
-  .finding-detail { font-size: 12px; color: #555; margin-top: 6px; line-height: 1.4; }
+  .finding-detail { font-size: 12px; color: #555; margin-top: 6px; line-height: 1.4;
+                    font-family: ui-monospace, Menlo, Consolas, monospace; background:#f6f8fa;
+                    padding:4px 8px; border-radius:4px; }
+
+  .explain-block { margin-top: 10px; padding: 8px 10px; background: #f8fafc;
+                   border-left: 3px solid #cbd5e1; border-radius: 4px; font-size: 13px;
+                   line-height: 1.5; }
+  .explain-block .ex-row { margin: 3px 0; }
+  .explain-block .ex-label { font-weight: 600; color: #334155; margin-right: 4px; }
+  .explain-block .ex-ok    { color: #065f46; }
+  .explain-block .ex-bad   { color: #991b1b; }
+  .explain-missing { background: #fef9c3; border-left-color: #eab308; color: #713f12; }
+
+  .sev-header { margin-top: 20px; padding: 6px 10px; border-radius: 6px; font-size: 14px; }
+  .sev-h { background: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
+  .sev-m { background: #fef3c7; color: #92400e; border-left: 4px solid #f59e0b; }
+  .sev-l { background: #dbeafe; color: #1e40af; border-left: 4px solid #3b82f6; }
+
+  .info-details { margin-top: 20px; padding: 8px 12px; background: #f3f4f6;
+                  border-radius: 6px; font-size: 13px; }
+  .info-details summary { cursor: pointer; font-weight: 600; color: #555; }
+  .info-details[open] summary { margin-bottom: 6px; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+  .ai-balanced { margin-top: 10px; padding: 10px 12px; background: #eef2ff;
+                 border-left: 3px solid #6366f1; border-radius: 4px; font-size: 13px;
+                 line-height: 1.5; }
+  .ai-balanced .ai-head { font-weight: 600; color: #312e81; margin-bottom: 6px; }
+  .ai-balanced .ai-row  { margin: 3px 0; }
+  .ai-balanced .ai-label { font-weight: 600; color: #1e293b; margin-right: 4px; }
+  .ai-balanced .ai-ok    { color: #065f46; }
+  .ai-balanced .ai-bad   { color: #991b1b; }
+  .ai-balanced .ai-final { margin-top: 6px; padding-top: 6px; border-top: 1px solid #c7d2fe;
+                           font-weight: 500; }
+  .ai-balanced .ai-next  { font-style: italic; color: #4338ca; }
+
+  .ai-balanced-cta {
+    display: flex; gap: 14px; align-items: center; justify-content: space-between;
+    background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 8px;
+    padding: 12px 14px; margin: 12px 0 20px;
+  }
+  .ai-balanced-cta button {
+    background: #4f46e5; color: #fff; border: 0; border-radius: 6px;
+    padding: 8px 14px; font-size: 14px; font-weight: 600; cursor: pointer;
+    flex-shrink: 0;
+  }
+  .ai-balanced-cta button:hover { background: #4338ca; }
+  .ai-balanced-cta button:disabled { background: #94a3b8; cursor: wait; }
 
   .signers ul { margin: 6px 0; padding-left: 22px; }
   .signers li { margin: 2px 0; font-size: 14px; }
@@ -151,31 +198,88 @@
   <!-- ============================================================ -->
   <h2>2. Was haben wir gefunden?</h2>
 
-  {% if not findings %}
+  {% if findings_total_relevant == 0 and not findings.info %}
     <p>Keine relevanten Auffaelligkeiten. Alles unter „INFO" — also entweder gar nichts gefunden oder nur Befunde die fuer diesen Dokumenttyp typisch und harmlos sind.</p>
   {% else %}
-    <p>
-      Insgesamt <strong>{{ high_count }} schwerwiegende</strong>,
-      <strong>{{ medium_count }} mittlere</strong> und
-      <strong>{{ low_count }} leichte</strong> Auffaelligkeiten.
-      Hier die wichtigsten ({{ findings | length }}):
-    </p>
-    <div class="findings">
-      {% for f in findings %}
-        <div class="finding">
-          <span class="badge {{ (f.severity.value if f.severity is defined and f.severity is not string else f.severity) }}">
-            {{ (f.severity.value if f.severity is defined and f.severity is not string else f.severity) }}
-          </span>
-          <div class="finding-body">
-            <div class="finding-msg">{{ f.message }}</div>
-            <div class="finding-cat">Kategorie: {{ f.category }}</div>
-            {% if f.detail %}
-              <div class="finding-detail">{{ f.detail }}</div>
-            {% endif %}
+    {% if not ai_balanced_available %}
+      <div class="ai-balanced-cta" id="aiBalCta">
+        <div>
+          <strong>🤖 Ausgewogene KI-Einschaetzung pro Befund</strong>
+          <div style="font-size:13px;color:#555;margin-top:4px">
+            Die KI prueft JEDEN Befund neutral und schreibt fuer beide Seiten was er bedeutet — nichts voreingenommenes. Dauert ~30-60 Sekunden.
           </div>
         </div>
-      {% endfor %}
-    </div>
+        <button id="aiBalBtn" type="button">KI-Analyse pro Befund anfordern</button>
+      </div>
+    {% endif %}
+    <p>
+      Insgesamt
+      <strong>{{ high_count }} schwerwiegende</strong>,
+      <strong>{{ medium_count }} mittlere</strong>,
+      <strong>{{ low_count }} leichte</strong>
+      und <strong>{{ findings.info | length }} informelle</strong> Befunde.
+      Hier <em>alle</em> Auffaelligkeiten mit Erklaerung was sie bedeuten — und wann sie harmlos bzw. verdaechtig sind:
+    </p>
+
+    {% macro render_finding(f) %}
+      <div class="finding">
+        <span class="badge {{ (f.severity.value if f.severity is defined and f.severity is not string else f.severity) }}">
+          {{ (f.severity.value if f.severity is defined and f.severity is not string else f.severity) }}
+        </span>
+        <div class="finding-body">
+          <div class="finding-msg">{{ f.message }}</div>
+          <div class="finding-cat">Kategorie: <code>{{ f.category }}</code></div>
+          {% if f.detail %}
+            <div class="finding-detail">{{ f.detail }}</div>
+          {% endif %}
+
+          {% if f._was_ist_das %}
+            <div class="explain-block">
+              <div class="ex-row"><span class="ex-label">Was ist das?</span> {{ f._was_ist_das }}</div>
+              <div class="ex-row ex-ok"><span class="ex-label">Wann harmlos:</span> {{ f._wann_harmlos }}</div>
+              <div class="ex-row ex-bad"><span class="ex-label">Wann verdaechtig:</span> {{ f._wann_verdaechtig }}</div>
+            </div>
+          {% else %}
+            <div class="explain-block explain-missing">
+              <small>Keine Klartext-Erklaerung fuer Kategorie <code>{{ f.category }}</code> hinterlegt. Sieh in der technischen Ansicht nach Details.</small>
+            </div>
+          {% endif %}
+
+          {% if f._ai_einschaetzung %}
+            <div class="ai-balanced">
+              <div class="ai-head">🤖 KI-Einschaetzung fuer DIESEN Fall <small>(ausgewogen, beide Seiten)</small></div>
+              {% if f._ai_tatsache %}<div class="ai-row"><span class="ai-label">Tatsache:</span> {{ f._ai_tatsache }}</div>{% endif %}
+              {% if f._ai_harmlos %}<div class="ai-row ai-ok"><span class="ai-label">Eher harmlos wenn:</span> {{ f._ai_harmlos }}</div>{% endif %}
+              {% if f._ai_verdacht %}<div class="ai-row ai-bad"><span class="ai-label">Eher verdaechtig wenn:</span> {{ f._ai_verdacht }}</div>{% endif %}
+              <div class="ai-row ai-final"><span class="ai-label">Einschaetzung:</span> {{ f._ai_einschaetzung }}</div>
+              {% if f._ai_pruefung %}<div class="ai-row ai-next"><span class="ai-label">Naechster Pruefschritt:</span> {{ f._ai_pruefung }}</div>{% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    {% endmacro %}
+
+    {% if findings.high %}
+      <h3 class="sev-header sev-h">🛑 Schwerwiegend ({{ findings.high | length }})</h3>
+      <div class="findings">{% for f in findings.high %}{{ render_finding(f) }}{% endfor %}</div>
+    {% endif %}
+
+    {% if findings.medium %}
+      <h3 class="sev-header sev-m">⚠️ Mittel ({{ findings.medium | length }})</h3>
+      <div class="findings">{% for f in findings.medium %}{{ render_finding(f) }}{% endfor %}</div>
+    {% endif %}
+
+    {% if findings.low %}
+      <h3 class="sev-header sev-l">ℹ️ Leicht ({{ findings.low | length }})</h3>
+      <div class="findings">{% for f in findings.low %}{{ render_finding(f) }}{% endfor %}</div>
+    {% endif %}
+
+    {% if findings.info %}
+      <details class="info-details">
+        <summary>Auch {{ findings.info | length }} informelle Befunde anzeigen <small>(typisch / erwartet fuer diesen Dokumenttyp)</small></summary>
+        <div class="findings" style="margin-top:10px">{% for f in findings.info %}{{ render_finding(f) }}{% endfor %}</div>
+      </details>
+    {% endif %}
   {% endif %}
 
   <!-- ============================================================ -->
@@ -219,5 +323,41 @@
   </div>
 
 </div>
+
+<script>
+(function() {
+  var btn = document.getElementById('aiBalBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    btn.textContent = 'KI denkt nach... (~30-60s)';
+    fetch('/ai-balanced/{{ analysis_id }}?lang=de', { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.error) {
+          btn.disabled = false;
+          btn.textContent = 'Erneut versuchen';
+          var box = document.getElementById('aiBalCta');
+          if (box) {
+            var err = document.createElement('div');
+            err.style.color = '#991b1b';
+            err.style.fontSize = '13px';
+            err.style.marginTop = '8px';
+            err.textContent = 'Fehler: ' + data.error;
+            box.appendChild(err);
+          }
+          return;
+        }
+        // Erfolg → Seite neu laden, die balanced-Bewertung ist gespeichert
+        window.location.reload();
+      })
+      .catch(function(err) {
+        btn.disabled = false;
+        btn.textContent = 'Erneut versuchen';
+        console.error('balanced fetch failed:', err);
+      });
+  });
+})();
+</script>
 </body>
 </html>

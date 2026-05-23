@@ -567,7 +567,8 @@ class FontForensicsResult(BaseModel):
     fonts: List[Dict[str, Any]] = Field(default_factory=list)
     suspicious_fonts: List[Dict[str, Any]] = Field(default_factory=list)
     encoding_anomalies: List[Dict[str, Any]] = Field(default_factory=list)
-    font_creators: List[str] = Field(default_factory=list)
+    # Akzeptiert sowohl Strings (Legacy) als auch Dicts (neuer Analyzer mit count).
+    font_creators: List[Any] = Field(default_factory=list)
     anomalies: List[Anomaly] = Field(default_factory=list)
 
 

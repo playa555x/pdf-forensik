@@ -718,6 +718,19 @@ function _severityBadge(level) {
   return '<span class="ai-severity-badge ' + cls + '">' + (level || '—') + '</span>';
 }
 
+// Defensive Liste-Helper: LLM-Output kann pro Feld Array ODER Object ODER String sein.
+// Liefert immer ein Array zum sicheren forEach.
+function _aiArr(x) {
+  if (Array.isArray(x)) return x;
+  if (x == null) return [];
+  if (typeof x === 'object') {
+    // Dict -> values als Array (z.B. {"1": "Empfehlung A", "2": "B"})
+    try { return Object.values(x); } catch (e) { return []; }
+  }
+  if (typeof x === 'string') return [x];
+  return [];
+}
+
 function _renderAiReview(r) {
   var loading = document.getElementById('aiReviewLoading');
   var content = document.getElementById('aiReviewContent');
@@ -789,7 +802,7 @@ function _renderAiReview(r) {
   var hbEl = _getEl('aiHauptbefunde');
   if (hbEl) {
     hbEl.innerHTML = '';
-    var hbItems = r.hauptbefunde || [];
+    var hbItems = _aiArr(r.hauptbefunde);
     hbItems.forEach(function(item) {
       var div = document.createElement('div');
       div.className = 'ai-befund-item';
@@ -806,7 +819,7 @@ function _renderAiReview(r) {
 
   // Manipulationshinweise
   var manipSection = _getEl('aiManipulationSection');
-  var manipItems = r.manipulation_hinweise || [];
+  var manipItems = _aiArr(r.manipulation_hinweise);
   if (manipItems.length > 0) {
     var manipEl = _getEl('aiManipulation');
     if (manipEl) {
@@ -856,7 +869,7 @@ function _renderAiReview(r) {
   // Weitere Tests
   var testsEl = _getEl('aiWeitereTests');
   if (testsEl) {
-    var tests = r.weitere_tests || [];
+    var tests = _aiArr(r.weitere_tests);
     testsEl.innerHTML = '';
     if (tests.length > 0) {
       tests.forEach(function(t) {
@@ -903,7 +916,7 @@ function _renderAiReview(r) {
   var empUl = _getEl('aiEmpfehlungen');
   if (empUl) {
     empUl.innerHTML = '';
-    (r.empfehlungen || []).forEach(function(item) {
+    _aiArr(r.empfehlungen).forEach(function(item) {
       var li = document.createElement('li');
       li.textContent = typeof item === 'string' ? item : (item.empfehlung || JSON.stringify(item));
       empUl.appendChild(li);

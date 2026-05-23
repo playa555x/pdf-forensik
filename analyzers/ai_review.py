@@ -714,3 +714,194 @@ async def stream_quick_impression(
                         yield cnt
                 except Exception:
                     continue
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Balanced-per-Finding-Review
+# ──────────────────────────────────────────────────────────────────────
+# Idee: pro Befund eine NEUTRALE Beurteilung — beide Seiten beleuchten
+# (warum es harmlos sein KANN vs. warum es trotzdem zu pruefen ist).
+# KEIN voreingenommenes "Scam-Muster"-Narrativ.
+# ──────────────────────────────────────────────────────────────────────
+
+_BALANCED_SYS_DE = """\
+Du bist ein nuechterner PDF-Forensik-Sachverstaendiger.
+
+Du bekommst eine Liste konkreter forensischer Befunde aus einer PDF-Analyse.
+Fuer JEDEN einzelnen Befund schreibst du eine AUSGEWOGENE Beurteilung mit
+beiden Seiten — niemals voreingenommen, niemals reisserisch.
+
+Regeln:
+- BLEIB FAKTISCH. Erklaere nicht "Scam-Muster" — sondern was technisch passiert.
+- IMMER beide Seiten: "wann ist das harmlos" UND "wann waere es ein Warnsignal".
+- Wenn der Befund eher harmlos ist: sag das. Wenn er rot ist: sag das auch.
+- Kein Fluff. Kurz, konkret, in einfachen Worten fuer einen Laien.
+- Niemals erfinden was nicht in den Daten steht.
+
+Antworte AUSSCHLIESSLICH als valides JSON-Objekt mit folgender Struktur:
+{
+  "version": 1,
+  "findings": [
+    {
+      "index": 0,
+      "category": "<exakt wie im Input>",
+      "severity": "<exakt wie im Input>",
+      "tatsache": "Was wurde technisch konkret gefunden (1-2 Saetze).",
+      "wahrscheinlich_harmlos": "Plausibler harmloser Grund warum dieser Befund da ist (1-2 Saetze).",
+      "wahrscheinlich_verdaechtig": "Plausibler verdaechtiger Grund warum dieser Befund da ist (1-2 Saetze).",
+      "einschaetzung": "Deine ausgewogene Einschaetzung fuer GENAU diesen Fall basierend auf den vorliegenden Daten (2-3 Saetze).",
+      "naechste_pruefung": "Welcher konkrete naechste Pruefschritt klaert es definitiv (1 Satz)."
+    }
+  ]
+}
+
+Die "index"-Reihenfolge muss der Eingabe-Reihenfolge entsprechen.
+Nicht weniger Eintraege als Eingabe-Befunde liefern, nicht mehr.
+"""
+
+_BALANCED_SYS_EN = """\
+You are a sober PDF forensics expert.
+
+You receive a list of concrete forensic findings from a PDF analysis.
+For EACH finding write a BALANCED assessment with BOTH sides — never biased,
+never sensational.
+
+Rules:
+- BE FACTUAL. Don't explain "scam patterns" — explain what technically happened.
+- ALWAYS both sides: "when is this harmless" AND "when would it be a red flag".
+- If the finding is likely harmless: say so. If it's red: say that too.
+- No fluff. Short, concrete, in plain words for a non-expert.
+- Never invent what's not in the data.
+
+Reply EXCLUSIVELY as a valid JSON object with this structure:
+{
+  "version": 1,
+  "findings": [
+    {
+      "index": 0,
+      "category": "<exactly as in input>",
+      "severity": "<exactly as in input>",
+      "tatsache": "What was technically found (1-2 sentences).",
+      "wahrscheinlich_harmlos": "Plausible harmless reason this finding is there (1-2 sentences).",
+      "wahrscheinlich_verdaechtig": "Plausible suspicious reason this finding is there (1-2 sentences).",
+      "einschaetzung": "Your balanced assessment for THIS specific case based on the available data (2-3 sentences).",
+      "naechste_pruefung": "One concrete next check that would settle it (1 sentence)."
+    }
+  ]
+}
+
+The "index" order must match the input order.
+Not fewer entries than input findings, not more.
+"""
+
+
+def _build_balanced_user_prompt(
+    findings: list, doc_type: str, workflow: str, lang: str
+) -> str:
+    """Kompakter User-Prompt: nur die Befunde + Doc-Kontext, kein 8k-Dump."""
+    payload = {
+        "doc_type": doc_type,
+        "signature_workflow": workflow,
+        "findings": [
+            {
+                "index": i,
+                "category": (f.get("category") if isinstance(f, dict) else getattr(f, "category", "")),
+                "severity": (
+                    (f.get("severity") if isinstance(f, dict) else getattr(f, "severity", ""))
+                    if isinstance((f.get("severity") if isinstance(f, dict) else getattr(f, "severity", "")), str)
+                    else str(getattr((f.get("severity") if isinstance(f, dict) else getattr(f, "severity", "")), "value", ""))
+                ),
+                "message": (f.get("message") if isinstance(f, dict) else getattr(f, "message", "")) or "",
+                "detail":  (f.get("detail")  if isinstance(f, dict) else getattr(f, "detail",  "")) or "",
+            }
+            for i, f in enumerate(findings)
+        ],
+    }
+    intro = (
+        "Beurteile JEDEN dieser Befunde ausgewogen — beide Seiten. JSON-only."
+        if lang == "de"
+        else "Assess EACH of these findings in a balanced way — both sides. JSON only."
+    )
+    return intro + "\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+async def run_balanced_findings_review(
+    findings: list,
+    doc_type: str = "unknown",
+    workflow: str = "unknown",
+    lang: str = "de",
+) -> Dict[str, Any]:
+    """
+    Schickt die Befunde an Ollama und kriegt eine ausgewogene
+    Per-Befund-Bewertung zurueck.
+
+    findings: Liste von dicts/AnomalyReport mit category, severity, message, detail
+    Returns: {version, findings:[...], model, available, error?}
+    """
+    if not findings:
+        return {"version": 1, "findings": [], "available": True, "model": OLLAMA_MODEL}
+
+    system_prompt = _BALANCED_SYS_EN if lang == "en" else _BALANCED_SYS_DE
+    user_prompt = _build_balanced_user_prompt(findings, doc_type, workflow, lang)
+
+    headers = {
+        "Authorization": "Bearer ollama",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": user_prompt},
+        ],
+        # Kleineres Cap — Output ist viel kleiner als das Vollreview
+        "max_tokens": 4096,
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+    }
+
+    content = ""
+    last_error = ""
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
+                response = await client.post(OLLAMA_API_URL, headers=headers, json=payload)
+                response.raise_for_status()
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            parsed = _extract_json_from_response(content)
+            # Defensive: 'findings' muss Liste sein
+            if not isinstance(parsed.get("findings"), list):
+                parsed["findings"] = []
+            parsed["model"] = OLLAMA_MODEL
+            parsed["available"] = True
+            return parsed
+        except httpx.HTTPStatusError as e:
+            return {
+                "error": f"Ollama-Fehler {e.response.status_code}: {e.response.text[:300]}",
+                "available": False,
+                "findings": [],
+            }
+        except httpx.ConnectError:
+            return {
+                "error": f"Ollama nicht erreichbar unter {OLLAMA_API_URL}.",
+                "available": False,
+                "findings": [],
+            }
+        except json.JSONDecodeError as e:
+            if attempt < 1:
+                payload["messages"][-1]["content"] += (
+                    "\n\nWICHTIG: Nur valides JSON, kein Markdown davor/danach."
+                )
+                continue
+            return {
+                "error": f"KI-Antwort konnte nicht als JSON geparst werden: {e}",
+                "raw_response": content[:1500] if content else "",
+                "available": False,
+                "findings": [],
+            }
+        except Exception as e:
+            last_error = str(e)
+            return {"error": f"Unerwarteter Fehler: {last_error}", "available": False, "findings": []}
+
+    return {"error": f"Alle Versuche fehlgeschlagen: {last_error}", "available": False, "findings": []}

@@ -12,8 +12,13 @@ import json
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from database.db import get_analysis, save_ai_review, get_ai_review
-from analyzers.ai_review import run_ai_review, stream_quick_impression
+from database.db import (
+    get_analysis, save_ai_review, get_ai_review,
+    save_ai_balanced, get_ai_balanced,
+)
+from analyzers.ai_review import (
+    run_ai_review, stream_quick_impression, run_balanced_findings_review,
+)
 
 router = APIRouter()
 
@@ -191,3 +196,66 @@ async def stream_ai_review(
             "Connection": "keep-alive",
         },
     )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Balanced-per-Finding Endpoints
+# ──────────────────────────────────────────────────────────────────────
+
+@router.get("/ai-balanced/{analysis_id}")
+async def get_cached_ai_balanced(analysis_id: str, lang: str = Query(default="de", pattern="^(de|en)$")):
+    """Gibt die gespeicherte balanced-per-Finding-Bewertung zurueck. 404 wenn noch nicht generiert."""
+    balanced = await get_ai_balanced(analysis_id, lang)
+    if balanced is None:
+        raise HTTPException(status_code=404, detail="Keine balanced-Bewertung vorhanden.")
+    return balanced
+
+
+@router.post("/ai-balanced/{analysis_id}")
+async def ai_balanced(
+    analysis_id: str,
+    lang: str = Query(default="de", pattern="^(de|en)$"),
+    force: bool = Query(default=False),
+):
+    """
+    Generiert eine ausgewogene Per-Befund-Bewertung (beide Seiten je Finding).
+    Cache-first: wenn schon vorhanden, sofortiger Return mit ?_cached=true.
+    Mit ?force=true wird neu generiert.
+    Filter: nur HIGH+MEDIUM+LOW Anomalien (kein INFO).
+    """
+    result = await get_analysis(analysis_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Analyse nicht gefunden.")
+
+    if not force:
+        cached = await get_ai_balanced(analysis_id, lang)
+        if cached is not None:
+            cached["_cached"] = True
+            return cached
+
+    data = result.model_dump()
+    all_anoms = data.get("all_anomalies") or []
+    # Nur relevante Befunde (kein INFO) — Token-Budget schuetzen
+    relevant = []
+    for a in all_anoms:
+        sev = a.get("severity") if isinstance(a, dict) else getattr(a, "severity", "")
+        sev_str = sev if isinstance(sev, str) else str(getattr(sev, "value", sev))
+        if (sev_str or "").upper() != "INFO":
+            relevant.append(a)
+
+    doc_type = (data.get("doc_type") or {}).get("doc_type", "unknown")
+    workflow = (data.get("signature_workflow") or {}).get("workflow", "unknown")
+
+    balanced = await run_balanced_findings_review(
+        findings=relevant, doc_type=doc_type, workflow=workflow, lang=lang,
+    )
+
+    if not balanced.get("available", True) and "error" in balanced:
+        # Wir geben den Fehler trotzdem zurueck (HTTP 200), damit Frontend ihn anzeigen kann,
+        # ohne dass ein 502 die UI bricht.
+        balanced["_cached"] = False
+        return balanced
+
+    await save_ai_balanced(analysis_id, lang, balanced)
+    balanced["_cached"] = False
+    return balanced

@@ -45,12 +45,16 @@ def _find_source_file(analysis_id: str) -> Optional[Path]:
 
 
 _SECURITY_HEADERS = {
-    # Browser darf KEIN JS aus dieser Response ausfuehren — wir liefern nur HTML+IMG
+    # Sicherheits-Ueberlegung: das PDF wird NIE im Browser geladen — wir
+    # rendern serverseitig zu PNG. Unser eigenes Viewer-JS (only-self) darf
+    # laufen, um Overlays + Sidebar zu bauen. PDF-Bytes erreichen den Browser
+    # NICHT, also bringt das auch keinen Angriffsvektor.
     "Content-Security-Policy": (
         "default-src 'none'; "
         "img-src 'self' data:; "
         "style-src 'self' 'unsafe-inline'; "
-        "script-src 'none'; "
+        "script-src 'self'; "
+        "connect-src 'self'; "
         "form-action 'none'; "
         "frame-ancestors 'self'"
     ),
@@ -129,6 +133,257 @@ async def view_page_with_bbox(
         doc.close()
 
     return Response(content=png_bytes, media_type="image/png", headers=_SECURITY_HEADERS)
+
+
+@router.get("/view/{analysis_id}/markers.json")
+async def view_markers(analysis_id: str):
+    """
+    Liefert pro Seite die forensischen Marker mit Koordinaten:
+      - image_forensics: Bilder die ELA/Copy-Move-Anomalien haben
+      - hidden_text:     versteckte Text-Bloecke
+      - redactions:      ausgewiesene Redaction-Annotations (separat von Annotations-Sidebar)
+
+    Output:
+      {"pages": [{"page": 0, "width": w, "height": h, "markers": [...]}]}
+      marker = {kind, rect_top, severity, category, message, detail?}
+    """
+    src = _find_source_file(analysis_id)
+    if src is None:
+        raise HTTPException(status_code=404, detail="Quell-Datei nicht gefunden")
+    result = await get_analysis(analysis_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Analyse nicht gefunden")
+    try:
+        import fitz
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PyMuPDF nicht verfuegbar")
+
+    data = result.model_dump() if hasattr(result, "model_dump") else (result.dict() if hasattr(result, "dict") else {})
+
+    # ──────────────────────────────────────────────────────
+    # Pro Seite ein dict bauen, dann auffuellen
+    # ──────────────────────────────────────────────────────
+    pages_map: dict = {}
+
+    try:
+        doc = fitz.open(src)
+        # Seitendimensionen initialisieren
+        for i in range(len(doc)):
+            page = doc[i]
+            pages_map[i] = {
+                "page":   i,
+                "width":  float(page.rect.width),
+                "height": float(page.rect.height),
+                "markers": [],
+            }
+
+        # ────────────────────────────────────────────────
+        # 1) Image Forensics: Bilder mit Anomalien lokalisieren
+        # ────────────────────────────────────────────────
+        img_an = (data.get("image_forensics") or {}).get("anomalies") or []
+        # Image-Forensics meldet typischerweise pro Bild "Seite N (Name)"
+        # → wir mappen alle Bilder pro Seite ueber PyMuPDF auf ihre Bboxes
+        # und matchen ueber den Seiten-Index. Bei mehreren Bildern pro Seite
+        # nehmen wir alle (besser zu viele Boxen als zu wenige).
+        flagged_pages: set = set()
+        for anom in img_an:
+            msg = (anom.get("message") if isinstance(anom, dict) else getattr(anom, "message", "")) or ""
+            # Erwarte Format "...Seite N..." oder "...page N..."
+            import re as _re
+            m = _re.search(r"[Ss]eite\s+(\d+)|page\s+(\d+)", msg)
+            if m:
+                page_one = int(m.group(1) or m.group(2))
+                flagged_pages.add(page_one - 1)
+        for p_idx in flagged_pages:
+            if p_idx < 0 or p_idx >= len(doc):
+                continue
+            page = doc[p_idx]
+            for img in (page.get_images(full=True) or []):
+                try:
+                    xref = img[0]
+                    rects = page.get_image_rects(xref) or []
+                    for r in rects:
+                        pages_map[p_idx]["markers"].append({
+                            "kind":     "image_forensics",
+                            "rect_top": [float(r.x0), float(r.y0), float(r.x1), float(r.y1)],
+                            "severity": "MEDIUM",
+                            "category": "image_forensics",
+                            "message":  "Bild mit forensischer Auffaelligkeit",
+                            "detail":   f"PyMuPDF xref={xref}",
+                        })
+                except Exception:
+                    continue
+
+        # ────────────────────────────────────────────────
+        # 2) Hidden Text: Bloecke mit coords liefern
+        # ────────────────────────────────────────────────
+        hidden = (data.get("hidden_text") or {}).get("hidden_blocks") or []
+        for blk in hidden:
+            if not isinstance(blk, dict):
+                continue
+            p = blk.get("page")
+            coords = blk.get("coords")  # erwartet {x0,y0,x1,y1}
+            if not isinstance(p, int) or not isinstance(coords, dict):
+                continue
+            p_idx = p - 1 if p >= 1 else p  # 1-basiert -> 0-basiert
+            if p_idx not in pages_map:
+                continue
+            try:
+                pages_map[p_idx]["markers"].append({
+                    "kind":     "hidden_text",
+                    "rect_top": [
+                        float(coords.get("x0", 0)),
+                        float(coords.get("y0", 0)),
+                        float(coords.get("x1", 0)),
+                        float(coords.get("y1", 0)),
+                    ],
+                    "severity": "HIGH",
+                    "category": "hidden_text",
+                    "message":  "Versteckter Text-Block",
+                    "detail":   (blk.get("text") or "")[:200],
+                })
+            except Exception:
+                continue
+
+        # ────────────────────────────────────────────────
+        # 3) Redaction-Annotations (extra-rot)
+        # ────────────────────────────────────────────────
+        for p_idx in range(len(doc)):
+            page = doc[p_idx]
+            try:
+                annot_iter = page.annots() or []
+            except Exception:
+                annot_iter = []
+            for annot in annot_iter:
+                try:
+                    if (annot.type[1] if hasattr(annot, "type") else "").lower() == "redact":
+                        r = annot.rect
+                        pages_map[p_idx]["markers"].append({
+                            "kind":     "redaction",
+                            "rect_top": [float(r.x0), float(r.y0), float(r.x1), float(r.y1)],
+                            "severity": "HIGH",
+                            "category": "redaction",
+                            "message":  "Redaction-Markierung",
+                            "detail":   (annot.info or {}).get("content", "") or "",
+                        })
+                except Exception:
+                    continue
+
+        doc.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Marker-Extract-Fehler: {e}")
+
+    pages_out = [pages_map[i] for i in sorted(pages_map.keys())]
+    total = sum(len(p["markers"]) for p in pages_out)
+    return {"analysis_id": analysis_id, "total": total, "pages": pages_out}
+
+
+@router.get("/view/{analysis_id}/annotations.json")
+async def view_annotations(analysis_id: str):
+    """
+    Liefert pro Seite die Annotations + Page-Dimensionen.
+    Output:
+      {
+        "pages": [
+          {"page": 0, "width": 612.0, "height": 792.0,
+           "annotations": [{"subtype": "Text", "rect": [x0,y0,x1,y1],
+                            "author": "...", "contents": "...",
+                            "mod_date_iso": "..."}]}
+        ]
+      }
+    Koordinaten sind in PDF-pt (Origin links-OBEN bereits umgerechnet: y_top = page_h - y1).
+    """
+    src = _find_source_file(analysis_id)
+    if src is None:
+        raise HTTPException(status_code=404, detail="Quell-Datei nicht gefunden")
+    try:
+        import fitz
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PyMuPDF nicht verfuegbar")
+
+    pages_out = []
+    try:
+        doc = fitz.open(src)
+        for page_idx in range(len(doc)):
+            page = doc[page_idx]
+            pw, ph = float(page.rect.width), float(page.rect.height)
+            anns = []
+
+            # 1) Markup/Sticky/Stamp Annotations via page.annots()
+            try:
+                annot_iter = page.annots() or []
+            except Exception:
+                annot_iter = []
+            for annot in annot_iter:
+                try:
+                    r = annot.rect
+                    info = annot.info or {}
+                    anns.append({
+                        "subtype":   annot.type[1] if hasattr(annot, "type") else "?",
+                        "rect_pdf":  [float(r.x0), float(r.y0), float(r.x1), float(r.y1)],
+                        "rect_top":  [float(r.x0), float(r.y0), float(r.x1), float(r.y1)],
+                        "author":    info.get("title") or "",
+                        "contents":  info.get("content") or "",
+                        "name":      info.get("name") or "",
+                        "mod_date":  info.get("modDate") or "",
+                        "flags":     int(annot.flags or 0),
+                    })
+                except Exception:
+                    continue
+
+            # 2) Link-Annotations via page.get_links() — PyMuPDF schließt /Link
+            # aus page.annots() aus und liefert sie ueber den separaten Endpoint.
+            try:
+                link_iter = page.get_links() or []
+            except Exception:
+                link_iter = []
+            for lnk in link_iter:
+                try:
+                    rect = lnk.get("from")
+                    if rect is None:
+                        continue
+                    # rect kann fitz.Rect oder Tuple sein
+                    if hasattr(rect, "x0"):
+                        x0, y0, x1, y1 = float(rect.x0), float(rect.y0), float(rect.x1), float(rect.y1)
+                    else:
+                        x0, y0, x1, y1 = float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3])
+                    # Inhalt: URI oder GoTo-Ziel oder interner Verweis
+                    contents = ""
+                    kind = lnk.get("kind")
+                    if kind == 2 and lnk.get("uri"):           # LINK_URI
+                        contents = "URI: " + str(lnk["uri"])
+                    elif kind == 1:                             # LINK_GOTO
+                        contents = "Interner Sprung -> Seite " + str(lnk.get("page", "?") + 1 if isinstance(lnk.get("page"), int) else lnk.get("page", "?"))
+                    elif kind == 3:                             # LINK_NAMED
+                        contents = "Named Destination: " + str(lnk.get("name", "?"))
+                    elif kind == 4 and lnk.get("file"):         # LINK_LAUNCH
+                        contents = "Launch: " + str(lnk["file"])
+                    else:
+                        contents = "Link (kind=" + str(kind) + ")"
+                    anns.append({
+                        "subtype":   "Link",
+                        "rect_pdf":  [x0, y0, x1, y1],
+                        "rect_top":  [x0, y0, x1, y1],
+                        "author":    "",
+                        "contents":  contents,
+                        "name":      lnk.get("name", "") or "",
+                        "mod_date":  "",
+                        "flags":     0,
+                    })
+                except Exception:
+                    continue
+
+            pages_out.append({
+                "page": page_idx,
+                "width": pw,
+                "height": ph,
+                "annotations": anns,
+            })
+        doc.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Annotation-Extract-Fehler: {e}")
+
+    return {"analysis_id": analysis_id, "pages": pages_out}
 
 
 @router.get("/view/{analysis_id}", response_class=HTMLResponse)

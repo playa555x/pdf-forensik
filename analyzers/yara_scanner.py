@@ -200,16 +200,40 @@ def analyze_yara(pdf_path: Path) -> Dict[str, Any]:
                     description = match.meta.get("description", match.rule)
 
                 match_strings = []
-                for offset, identifier, data in match.strings:
-                    try:
-                        decoded = data.decode("utf-8", errors="replace")[:100]
-                    except Exception:
-                        decoded = data.hex()[:100]
-                    match_strings.append({
-                        "offset": offset,
-                        "identifier": identifier if isinstance(identifier, str) else str(identifier),
-                        "data_preview": decoded,
-                    })
+                # yara-python >=4.3 liefert StringMatch-Objekte mit .identifier
+                # + .instances (Liste von StringMatchInstance(offset, matched_data)).
+                # Alte Versionen lieferten 3-Tuples (offset, identifier, data).
+                # Hier robust beide Formate behandeln.
+                for sm in (match.strings or []):
+                    if isinstance(sm, tuple) and len(sm) == 3:
+                        # Legacy yara-python <4.3
+                        offset, identifier, data = sm
+                        instances = [(offset, data)]
+                    else:
+                        # Modern: sm ist yara.StringMatch
+                        identifier = getattr(sm, "identifier", "?")
+                        instances_obj = getattr(sm, "instances", None) or []
+                        instances = [
+                            (getattr(i, "offset", 0),
+                             getattr(i, "matched_data", b"") or b"")
+                            for i in instances_obj
+                        ]
+                    for offset, data in instances:
+                        try:
+                            if isinstance(data, (bytes, bytearray)):
+                                decoded = data.decode("utf-8", errors="replace")[:100]
+                            else:
+                                decoded = str(data)[:100]
+                        except Exception:
+                            try:
+                                decoded = bytes(data).hex()[:100]
+                            except Exception:
+                                decoded = "?"
+                        match_strings.append({
+                            "offset": int(offset) if offset is not None else 0,
+                            "identifier": identifier if isinstance(identifier, str) else str(identifier),
+                            "data_preview": decoded,
+                        })
 
                 match_entry = {
                     "rule": match.rule,

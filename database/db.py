@@ -50,7 +50,8 @@ async def init_db() -> None:
 async def _ensure_phase4_columns(db) -> None:
     """Fügt Phase-4-Spalten hinzu falls noch nicht vorhanden (Migration)."""
     for col in ["font_prefixes_json TEXT", "quant_tables_json TEXT",
-                "ai_review_de TEXT", "ai_review_en TEXT"]:
+                "ai_review_de TEXT", "ai_review_en TEXT",
+                "ai_balanced_de TEXT", "ai_balanced_en TEXT"]:
         try:
             await db.execute(f"ALTER TABLE analyses ADD COLUMN {col}")
         except Exception:
@@ -347,6 +348,36 @@ async def save_ai_review(analysis_id: str, lang: str, review: dict) -> None:
 async def get_ai_review(analysis_id: str, lang: str) -> Optional[dict]:
     """Gespeichertes KI-Review aus DB laden. None wenn noch nicht vorhanden."""
     col = "ai_review_de" if lang == "de" else "ai_review_en"
+    async with aiosqlite.connect(DB_PATH) as db:
+        await _ensure_phase4_columns(db)
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            f"SELECT {col} FROM analyses WHERE id = ?", (analysis_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row and row[col]:
+                try:
+                    return json.loads(row[col])
+                except Exception:
+                    return None
+    return None
+
+
+async def save_ai_balanced(analysis_id: str, lang: str, balanced: dict) -> None:
+    """Balanced-per-Finding KI-Review persistent speichern (eigene Spalte)."""
+    col = "ai_balanced_de" if lang == "de" else "ai_balanced_en"
+    async with aiosqlite.connect(DB_PATH) as db:
+        await _ensure_phase4_columns(db)
+        await db.execute(
+            f"UPDATE analyses SET {col} = ? WHERE id = ?",
+            (json.dumps(balanced, ensure_ascii=False), analysis_id),
+        )
+        await db.commit()
+
+
+async def get_ai_balanced(analysis_id: str, lang: str) -> Optional[dict]:
+    """Balanced-per-Finding KI-Review aus DB laden."""
+    col = "ai_balanced_de" if lang == "de" else "ai_balanced_en"
     async with aiosqlite.connect(DB_PATH) as db:
         await _ensure_phase4_columns(db)
         db.row_factory = aiosqlite.Row
