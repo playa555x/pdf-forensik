@@ -25,6 +25,11 @@ PORT = int(os.environ.get("PORT", "9000"))
 MAX_UPLOAD_SIZE_MB = 200
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
+# Hard-Cap fuer die gesamte Analyse-Pipeline. Wenn ein Analyzer haengt
+# (z.B. ein neuer regex-bug oder pikepdf-Edge-Case) wird die Request mit
+# HTTP 504 abgebrochen statt den ganzen Server unresponsiv zu machen.
+PIPELINE_TIMEOUT_SECONDS = int(os.environ.get("PIPELINE_TIMEOUT_SECONDS", "300"))
+
 # Anomalie-Schwellenwerte
 UUID_TIMESTAMP_HIGH_DELTA_SECONDS = 3600   # > 1 Stunde → HIGH
 UUID_TIMESTAMP_MEDIUM_DELTA_SECONDS = 60   # > 1 Minute → MEDIUM

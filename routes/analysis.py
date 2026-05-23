@@ -4,6 +4,7 @@ GET  /analysis/{id} — Ergebnis abrufen.
 DELETE /analysis/{id} — Analyse löschen.
 """
 from __future__ import annotations
+import asyncio
 import shutil
 import uuid
 from pathlib import Path
@@ -12,7 +13,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 
-from config import UPLOAD_DIR, MAX_UPLOAD_SIZE_BYTES, IMAGES_DIR
+from config import UPLOAD_DIR, MAX_UPLOAD_SIZE_BYTES, IMAGES_DIR, PIPELINE_TIMEOUT_SECONDS
 from analyzers.pipeline import run_pipeline
 from analyzers.multiformat_pipeline import run_office_pipeline
 from analyzers.image_pipeline import run_image_pipeline
@@ -53,17 +54,42 @@ async def analyze_pdf(file: UploadFile = File(...), profile: str = "standard"):
         tmp_path.write_bytes(content)
         fmt = detect_format(tmp_path, filename)
 
-        if is_pdf_format(fmt):
-            # PDF-Magic-Bytes prüfen
-            if not content.startswith(b"%PDF"):
-                raise HTTPException(status_code=400, detail="Datei ist kein gültiges PDF (fehlendes %PDF-Header).")
-            result: AnalysisResult = run_pipeline(tmp_path, filename, profile=profile if profile in ("lite","standard","deep") else "standard")
-        elif is_office_format(fmt):
-            result = run_office_pipeline(tmp_path, filename)
-        elif is_image_format(fmt):
-            result = run_image_pipeline(tmp_path, filename)
-        else:
-            raise HTTPException(status_code=400, detail=f"Format '{fmt}' wird nicht unterstützt.")
+        # Pipelines sind synchron + CPU-intensiv. asyncio.to_thread schiebt sie
+        # in einen Worker-Thread, damit der Event-Loop responsive bleibt und der
+        # Server parallele Requests weiter bedienen kann. asyncio.wait_for legt
+        # ein Hard-Cap drauf — wenn ein Analyzer haengt (z.B. unbekannter
+        # regex-bug), bricht die Request mit HTTP 504 ab statt den Server in
+        # CLOSE_WAIT-Stau zu fahren.
+        _profile = profile if profile in ("lite", "standard", "deep") else "standard"
+        try:
+            if is_pdf_format(fmt):
+                if not content.startswith(b"%PDF"):
+                    raise HTTPException(status_code=400, detail="Datei ist kein gültiges PDF (fehlendes %PDF-Header).")
+                result: AnalysisResult = await asyncio.wait_for(
+                    asyncio.to_thread(run_pipeline, tmp_path, filename, profile=_profile),
+                    timeout=PIPELINE_TIMEOUT_SECONDS,
+                )
+            elif is_office_format(fmt):
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(run_office_pipeline, tmp_path, filename),
+                    timeout=PIPELINE_TIMEOUT_SECONDS,
+                )
+            elif is_image_format(fmt):
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(run_image_pipeline, tmp_path, filename),
+                    timeout=PIPELINE_TIMEOUT_SECONDS,
+                )
+            else:
+                raise HTTPException(status_code=400, detail=f"Format '{fmt}' wird nicht unterstützt.")
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=504,
+                detail=(
+                    f"Analyse-Pipeline hat das {PIPELINE_TIMEOUT_SECONDS}-Sekunden Hard-Cap "
+                    "ueberschritten. Vermutlich Bug in einem Analyzer — Logs pruefen "
+                    "(z.B. py-spy dump auf den Service-Prozess). Server bleibt responsive."
+                ),
+            )
 
         await save_analysis(result)
     except HTTPException:
