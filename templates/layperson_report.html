@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Anfaenger-Bericht — {{ filename }}</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #fafafa; color: #1a1a1a; margin: 0; line-height: 1.55;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1   { font-size: 22px; margin: 8px 0 4px; }
+  h2   { font-size: 18px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 2px solid #eee; }
+  h3   { font-size: 15px; margin: 16px 0 6px; color: #444; }
+  p    { margin: 6px 0; }
+  small { color: #777; }
+  .meta { color: #777; font-size: 13px; margin-bottom: 16px; }
+  .topbar { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .topbar a { color: #555; text-decoration: none; font-size: 13px; }
+
+  /* Ampel */
+  .verdict { padding: 22px 24px; border-radius: 12px; margin: 18px 0 24px; }
+  .verdict.green { background: #ecfdf5; border: 2px solid #10b981; }
+  .verdict.amber { background: #fffbeb; border: 2px solid #f59e0b; }
+  .verdict.red   { background: #fef2f2; border: 2px solid #ef4444; }
+  .verdict-icon  { font-size: 38px; line-height: 1; }
+  .verdict-row   { display: flex; gap: 14px; align-items: center; }
+  .verdict-label { font-size: 17px; font-weight: 700; }
+  .verdict-short { margin-top: 8px; font-size: 14px; color: #333; }
+
+  /* Karten */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: #fff; border: 1px solid #e7e7e7; border-radius: 10px; padding: 14px 16px; }
+  .card .k { color: #777; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  .card .v { font-size: 15px; margin-top: 2px; font-weight: 500; }
+  .card .why { color: #555; font-size: 13px; margin-top: 6px; line-height: 1.4; }
+
+  /* Findings */
+  .findings { display: flex; flex-direction: column; gap: 10px; }
+  .finding { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px;
+             background: #fff; border: 1px solid #e7e7e7; border-radius: 8px; }
+  .badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
+           text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0; }
+  .badge.HIGH   { background: #fee2e2; color: #991b1b; }
+  .badge.MEDIUM { background: #fef3c7; color: #92400e; }
+  .badge.LOW    { background: #dbeafe; color: #1e40af; }
+  .finding-body { flex: 1; }
+  .finding-msg  { font-weight: 500; font-size: 14px; }
+  .finding-cat  { font-size: 12px; color: #888; margin-top: 2px; }
+  .finding-detail { font-size: 12px; color: #555; margin-top: 6px; line-height: 1.4; }
+
+  .signers ul { margin: 6px 0; padding-left: 22px; }
+  .signers li { margin: 2px 0; font-size: 14px; }
+  .signers .crypto-ok { color: #047857; font-size: 12px; margin-left: 6px; }
+
+  .ai-section { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+                padding: 16px 18px; margin-top: 12px; }
+  .ai-section .laien { font-size: 15px; line-height: 1.6; }
+  .ai-section .empfehlung { background: #fff; border-left: 3px solid #6366f1;
+                            padding: 10px 14px; margin-top: 12px; border-radius: 4px;
+                            font-size: 14px; }
+  .no-ai { color: #777; font-style: italic; font-size: 14px; }
+
+  .footer-note { margin-top: 28px; padding: 12px 14px; background: #f3f4f6;
+                 border-radius: 8px; font-size: 12px; color: #555; }
+  @media (max-width: 600px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <h1>Anfaenger-Bericht</h1>
+    <a href="/?analysis_id={{ analysis_id }}">⟵ Zur technischen Ansicht</a>
+  </div>
+
+  <div class="meta">
+    <strong>{{ filename }}</strong> — {{ file_size_mb }} MB, {{ page_count }} Seiten · analysiert {{ analyzed_at }}
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 3. Was bedeutet das? - Ampel ganz oben fuer schnellen Blick   -->
+  <!-- ============================================================ -->
+  <div class="verdict {{ verdict.color }}">
+    <div class="verdict-row">
+      <div class="verdict-icon">{{ verdict.icon }}</div>
+      <div>
+        <div class="verdict-label">{{ verdict.label }}</div>
+        <div class="verdict-short">{{ verdict.short }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 1. Was ist das fuer ein Dokument?                              -->
+  <!-- ============================================================ -->
+  <h2>1. Was ist das fuer ein Dokument?</h2>
+
+  <div class="grid">
+    <div class="card">
+      <div class="k">Dokumenttyp</div>
+      <div class="v">{{ doc_type_label }}</div>
+      <div class="why">{{ doc_type_explanation }}</div>
+      {% if doc_type_reasoning %}
+        <div class="why"><small>Begruendung: {{ doc_type_reasoning | join(' · ') }}</small></div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="k">Signatur-Status</div>
+      <div class="v">{{ workflow_label }}</div>
+      <div class="why">{{ workflow_explanation }}</div>
+      {% if signers %}
+        <div class="signers">
+          <h3 style="margin: 10px 0 4px;">Unterzeichner</h3>
+          <ul>
+            {% for s in signers %}
+              <li>
+                {{ s.signer_cn }}{% if s.signer_country %} ({{ s.signer_country }}){% endif %}
+                {% if s.intact %}<span class="crypto-ok">✓ Bytes-intakt</span>{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="k">Erstellt mit</div>
+      <div class="v">{{ creator or '—' }}</div>
+      <div class="why"><small>Producer: {{ producer or '—' }}</small></div>
+    </div>
+
+    <div class="card">
+      <div class="k">Wann?</div>
+      <div class="v">Erstellt: {{ created }}</div>
+      <div class="why">Geaendert: {{ modified }}</div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 2. Was haben wir gefunden?                                     -->
+  <!-- ============================================================ -->
+  <h2>2. Was haben wir gefunden?</h2>
+
+  {% if not findings %}
+    <p>Keine relevanten Auffaelligkeiten. Alles unter „INFO" — also entweder gar nichts gefunden oder nur Befunde die fuer diesen Dokumenttyp typisch und harmlos sind.</p>
+  {% else %}
+    <p>
+      Insgesamt <strong>{{ high_count }} schwerwiegende</strong>,
+      <strong>{{ medium_count }} mittlere</strong> und
+      <strong>{{ low_count }} leichte</strong> Auffaelligkeiten.
+      Hier die wichtigsten ({{ findings | length }}):
+    </p>
+    <div class="findings">
+      {% for f in findings %}
+        <div class="finding">
+          <span class="badge {{ (f.severity.value if f.severity is defined and f.severity is not string else f.severity) }}">
+            {{ (f.severity.value if f.severity is defined and f.severity is not string else f.severity) }}
+          </span>
+          <div class="finding-body">
+            <div class="finding-msg">{{ f.message }}</div>
+            <div class="finding-cat">Kategorie: {{ f.category }}</div>
+            {% if f.detail %}
+              <div class="finding-detail">{{ f.detail }}</div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- ============================================================ -->
+  <!-- 3. Was bedeutet das? (KI-Gutachten)                            -->
+  <!-- ============================================================ -->
+  <h2>3. Was bedeutet das in der Praxis?</h2>
+
+  {% if ai_review and ai_review.get('laien_erklaerung') %}
+    <div class="ai-section">
+      <h3>Klartext</h3>
+      <p class="laien">{{ ai_review.get('laien_erklaerung') }}</p>
+
+      {% if ai_review.get('verhaltensempfehlung') %}
+        <div class="empfehlung">
+          <strong>Empfehlung:</strong> {{ ai_review.get('verhaltensempfehlung') }}
+        </div>
+      {% endif %}
+
+      {% if ai_review.get('weitere_tests') %}
+        <h3>Weitere Pruefungen die sinnvoll waeren</h3>
+        <ul>
+          {% for t in ai_review.get('weitere_tests', [])[:5] %}
+            <li><strong>{{ t.test }}</strong> — {{ t.grund }} <small>({{ t.prioritaet }})</small></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="no-ai">
+      KI-Gutachten wurde noch nicht generiert. Oeffne die <a href="/?analysis_id={{ analysis_id }}">technische Ansicht</a>
+      und warte ~30-60 Sekunden — dann lade diese Seite neu.
+    </p>
+  {% endif %}
+
+  <div class="footer-note">
+    <strong>Wichtig:</strong> Diese Forensik prueft nur die <em>Datei selbst</em>, nicht den Inhalt.
+    Selbst wenn die Datei strukturell sauber ist, kann der Absender luegen, das Dokument
+    kann inhaltlich falsch sein, oder es kann von einem Faelscher legitim mit dem Original
+    erstellt worden sein. Bei wichtigen Entscheidungen das Original immer ueber einen
+    verifizierten Kanal beim Absender bestaetigen lassen.
+  </div>
+
+</div>
+</body>
+</html>

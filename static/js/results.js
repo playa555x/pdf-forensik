@@ -308,11 +308,82 @@ function renderRiskBanner(data) {
   const medium = data.anomaly_count_medium || 0;
   const low    = data.anomaly_count_low    || 0;
 
-  document.getElementById('riskCounts').innerHTML =
-    `<span class="text-high">${high}× HIGH</span> · ` +
-    `<span class="text-medium">${medium}× MEDIUM</span> · ` +
-    `<span class="text-low">${low}× LOW</span> · ` +
-    `${formatBytes(data.file_size_bytes)} · ${t('lbl_analysiert')}: ${formatDate(data.analyzed_at)}`;
+  // Doc-Typ + Workflow als kompakte Kacheln (Werte aus festen Maps, kein XSS-Risiko).
+  const docTypeLabels = {
+    office_letter:      ['📄', 'Brief / Memo'],
+    office_document:    ['📄', 'Bürodokument'],
+    design_brochure:    ['🎨', 'Design-Broschüre'],
+    scan:               ['📠', 'Scan'],
+    form:               ['📝', 'Formular'],
+    technical_document: ['📐', 'Tech-Dokument'],
+    online_converted:   ['🌐', 'Online-konvertiert'],
+    unknown:            ['❓', 'Unbekannt'],
+  };
+  const workflowLabels = {
+    no_signature:                       ['—', 'Unsigniert'],
+    single_sig_intact:                  ['✓', '1 Sig (intakt)'],
+    single_sig_modified_after:          ['⚠', '1 Sig + Änderungen'],
+    single_sig_broken:                  ['🛑', 'Sig GEBROCHEN'],
+    multi_sig_intact:                   ['✓✓', 'Multi-Sig (intakt)'],
+    multi_sig_broken:                   ['🛑', 'Multi-Sig BROKEN'],
+    multi_byterange_no_validated_sig:   ['?', 'Sig unklar'],
+    unknown:                            ['?', 'Sig-Status unklar'],
+    error:                              ['!', 'Sig-Check Fehler'],
+  };
+
+  const dtKey = (data.doc_type || {}).doc_type;
+  const wfKey = (data.signature_workflow || {}).workflow;
+  const [dtIcon, dtLabel] = docTypeLabels[dtKey] || docTypeLabels.unknown;
+  const [wfIcon, wfLabel] = workflowLabels[wfKey] || workflowLabels.unknown;
+
+  // DOM bauen statt innerHTML — keine String-Interpolation = kein XSS-Risiko.
+  const target = document.getElementById('riskCounts');
+  target.innerHTML = '';
+
+  function tile(icon, label, title) {
+    const el = document.createElement('span');
+    el.style.cssText = "display:inline-block;margin-right:8px;padding:2px 8px;background:var(--surface2,#f3f4f6);border-radius:5px;font-size:0.78rem;color:var(--text,#222);white-space:nowrap";
+    el.title = title;
+    el.textContent = icon + ' ' + label;
+    return el;
+  }
+  function sev(cls, n, label) {
+    const el = document.createElement('span');
+    el.className = cls;
+    el.textContent = n + '× ' + label;
+    return el;
+  }
+  function sep() {
+    const el = document.createElement('span');
+    el.textContent = ' · ';
+    return el;
+  }
+  function text(s) { return document.createTextNode(s); }
+
+  target.appendChild(tile(dtIcon, dtLabel, 'Dokumenttyp'));
+  target.appendChild(tile(wfIcon, wfLabel, 'Signatur-Status'));
+  target.appendChild(sep());
+  target.appendChild(sev('text-high',   high,   'HIGH'));
+  target.appendChild(sep());
+  target.appendChild(sev('text-medium', medium, 'MEDIUM'));
+  target.appendChild(sep());
+  target.appendChild(sev('text-low',    low,    'LOW'));
+  target.appendChild(sep());
+  target.appendChild(text(formatBytes(data.file_size_bytes)));
+  target.appendChild(sep());
+  target.appendChild(text(t('lbl_analysiert') + ': ' + formatDate(data.analyzed_at)));
+
+  // Prominenter Anfaenger-Bericht-Link, wenn analysis_id vorhanden
+  const aid = data.analysis_id;
+  if (aid && /^[A-Za-z0-9-]{8,64}$/.test(aid)) {
+    const a = document.createElement('a');
+    a.href = '/report/layperson/' + encodeURIComponent(aid);
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.style.cssText = "display:inline-block;margin-left:12px;padding:4px 10px;background:#6366f1;color:#fff;border-radius:6px;text-decoration:none;font-size:0.78rem;font-weight:600;white-space:nowrap";
+    a.textContent = '📋 Anfänger-Bericht';
+    target.appendChild(a);
+  }
 }
 
 // ===== Anomalien =====
@@ -323,13 +394,49 @@ function renderAnomalies(anomalies) {
   const badge = document.getElementById('anomalyTotalBadge');
 
   const significant = anomalies.filter(a => a.severity !== 'INFO');
-  if (!significant.length) { card.style.display = 'none'; return; }
+  const infoOnly    = anomalies.filter(a => a.severity === 'INFO');
+
+  if (!significant.length && !infoOnly.length) { card.style.display = 'none'; return; }
 
   card.style.display = 'block';
   badge.textContent = significant.length;
 
+  // Toggle-Button: zeige INFO-Anomalien an oder nicht (Default: nur relevant).
+  // Wir merken uns die Wahl pro Session in window._showInfoAnomalies.
+  const showInfo = !!window._showInfoAnomalies;
+
+  // Toggle-Knopf einsetzen (wenn INFO-Anomalien existieren)
+  let toolbar = document.getElementById('anomalyToolbar');
+  if (!toolbar) {
+    toolbar = document.createElement('div');
+    toolbar.id = 'anomalyToolbar';
+    toolbar.style.cssText = "margin: 4px 0 10px; font-size: 0.82rem;";
+    list.parentNode.insertBefore(toolbar, list);
+  }
+  toolbar.innerHTML = '';  // sicher: kein User-Input darin
+  if (infoOnly.length > 0) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.style.cssText = "padding:3px 10px;font-size:0.78rem;border:1px solid var(--border,#ccc);border-radius:5px;background:var(--surface2,#f3f4f6);cursor:pointer;color:var(--text,#222)";
+    btn.textContent = showInfo
+      ? `INFO-Befunde verbergen (${infoOnly.length})`
+      : `${infoOnly.length} INFO-Befunde auch zeigen`;
+    btn.onclick = function () {
+      window._showInfoAnomalies = !window._showInfoAnomalies;
+      renderAnomalies(anomalies);
+    };
+    toolbar.appendChild(btn);
+    const note = document.createElement('span');
+    note.style.cssText = "margin-left:10px;color:var(--muted,#777)";
+    note.textContent = showInfo
+      ? 'Auch typische/erwartete Befunde werden angezeigt.'
+      : 'INFO-Befunde sind typisch/erwartet für diesen Dokumenttyp.';
+    toolbar.appendChild(note);
+  }
+
   const order  = { HIGH: 0, MEDIUM: 1, LOW: 2, INFO: 3 };
-  const sorted = [...anomalies].sort((a, b) => (order[a.severity] ?? 4) - (order[b.severity] ?? 4));
+  const visible = showInfo ? anomalies : significant;
+  const sorted = [...visible].sort((a, b) => (order[a.severity] ?? 4) - (order[b.severity] ?? 4));
 
   list.innerHTML = sorted.map(a => {
     var msg = typeof translateMsg === 'function' ? translateMsg(a.message) : a.message;

@@ -19,3 +19,4 @@ transformers
 ultralytics
 huggingface_hub
 accelerate
+yara-python>=4.5.0
