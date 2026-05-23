@@ -109,6 +109,10 @@ async def stream_ai_review(
         except Exception as e:
             return {"error": f"Deep-Review-Task-Fehler: {e}", "available": False}
 
+    # Harte Obergrenzen damit ein blockierter Modell-Call den Server nicht vergiftet.
+    PRELIM_PER_TOKEN_TIMEOUT = 20    # Sekunden zwischen 2 Tokens — sonst Abbruch
+    DEEP_MAX_WAIT_SECONDS    = 240   # Stream wartet max 4 Min auf Deep-Result, danach -> pending
+
     async def gen():
         # Cache-Hit? Dann direkt final ausliefern
         if not force:
@@ -122,31 +126,61 @@ async def stream_ai_review(
         # Tiefen-Review SOFORT parallel starten (läuft im Hintergrund weiter,
         # auch wenn der Client die Verbindung trennt — wird beim nächsten
         # Laden aus dem Cache bedient).
-        # Startet Background-Task der auch nach Client-Disconnect weiterläuft
-        # (Referenz in _pending_deep_tasks verhindert GC).
         deep_task = _spawn_background(_run_and_cache_deep())
 
-        # Stage 1 — Quick Impression (8B, stream) — parallel zum 26B
+        # Stage 1 — Quick Impression (Streaming, mit Per-Token-Timeout)
         yield _sse("prelim_start", {})
         try:
-            async for delta in stream_quick_impression(analysis_data, lang):
-                yield _sse("prelim", {"delta": delta})
+            prelim_iter = stream_quick_impression(analysis_data, lang).__aiter__()
+            while True:
+                try:
+                    delta = await asyncio.wait_for(
+                        prelim_iter.__anext__(), timeout=PRELIM_PER_TOKEN_TIMEOUT
+                    )
+                    yield _sse("prelim", {"delta": delta})
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError:
+                    yield _sse("prelim_error", {
+                        "error": f"Quick-Impression haengt (>{PRELIM_PER_TOKEN_TIMEOUT}s kein Token) — abgebrochen"
+                    })
+                    break
         except Exception as e:
             yield _sse("prelim_error", {"error": str(e)[:300]})
         yield _sse("prelim_done", {})
 
-        # Stage 2 — auf Deep-Review warten (läuft schon seit Klick)
-        yield _sse("deep_start", {"eta_seconds": 600})
+        # Stage 2 — auf Deep-Review warten mit Hard-Cap
+        yield _sse("deep_start", {"eta_seconds": DEEP_MAX_WAIT_SECONDS})
 
         elapsed = 0
-        while not deep_task.done():
+        while not deep_task.done() and elapsed < DEEP_MAX_WAIT_SECONDS:
             await asyncio.sleep(5)
             elapsed += 5
             if not deep_task.done():
                 yield _sse("deep_tick", {"elapsed_seconds": elapsed})
 
-        review = deep_task.result()
-        yield _sse("final", review)
+        if deep_task.done():
+            try:
+                review = deep_task.result()
+            except Exception as e:
+                review = {"error": f"Deep-Task-Fehler: {e}", "available": False}
+            yield _sse("final", review)
+        else:
+            # Hard-Cap erreicht — Task laeuft im Hintergrund weiter und schreibt in Cache.
+            # Client kann die Seite in 1-2 Min neu laden -> Cache-Hit liefert das Ergebnis.
+            yield _sse("deep_pending", {
+                "message": (
+                    "Tiefen-Gutachten dauert laenger als erwartet. "
+                    "Es laeuft im Hintergrund weiter und wird automatisch im Cache abgelegt. "
+                    "Bitte die Seite in 1-2 Minuten neu laden."
+                ),
+                "elapsed_seconds": elapsed,
+            })
+            yield _sse("final", {
+                "pending": True,
+                "available": False,
+                "error": "Timeout im SSE-Stream — Ergebnis kommt per Cache nach.",
+            })
 
     return StreamingResponse(
         gen(),
