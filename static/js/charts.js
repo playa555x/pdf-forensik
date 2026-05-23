@@ -574,13 +574,16 @@ function _renderAnalyzerCoverage(data) {
     { key: 'phase6', label: 'P6' },
   ];
 
+  // Synchron mit Backend (analyzers/pipeline.py) und tatsächlichen Response-Keys.
+  // Vorher waren die meisten Keys falsch (z.B. 'software_id' statt 'software_fingerprint'),
+  // dadurch zeigte das Chart Phasen leer/abgebrochen obwohl die Pipeline durchlief.
   var phaseMap = {
-    phase1: ['metadata', 'software_id', 'incremental_saves', 'signature', 'uuid_decode', 'timezone', 'encryption'],
-    phase2: ['jpeg_analysis', 'hidden_text', 'javascript_actions', 'ioc_scanner', 'embedded_files'],
-    phase3: ['ela_analysis', 'image_forensics', 'steganography', 'deep_jpeg'],
-    phase4: ['object_streams', 'page_geometry', 'xref_validation', 'content_stream', 'yara_scan', 'residual_data', 'shadow_analysis'],
-    phase5: ['font_forensics', 'pdfa_compliance', 'linearization', 'printer_forensics', 'fuzzy_hash', 'redaction_detection', 'yellow_dots'],
-    phase6: ['virus_scan'],
+    phase1: ['hashes','metadata','uuid_decode','software_fingerprint','signature','page_geometry','page_labels','jpeg_extractor','jpeg_analyzer','quant_fingerprint'],
+    phase2: ['encryption','incremental_updates','javascript','embedded_files','virus_scan'],
+    phase3: ['timezone','author_artifacts','ela','object_streams','residual_objects','shadow_attack','image_forensics','steganography'],
+    phase4: ['ioc','hidden_text','yellow_dots'],
+    phase5: ['stream_decomp','xref_validation','deep_jpeg','redaction','ocg_layers','content_stream','incremental_diff','fuzzy_hash'],
+    phase6: ['cross_analyzer','yara','font_forensics','pdfa_compliance','linearization','icc_profiles','visual_render','object_graph','cross_doc_fingerprint','printer_forensics','chain_of_custody'],
   };
 
   var passData = [];
