@@ -36,9 +36,23 @@ UUID_TIMESTAMP_MEDIUM_DELTA_SECONDS = 60   # > 1 Minute → MEDIUM
 
 COMPARE_MIN_TIME_DIFF_SECONDS = 300        # < 5 Minuten → MEDIUM
 
-# Risk-Level-Logik
-RISK_HIGH_MIN_COUNT = 1    # ≥1 HIGH-Anomalie → RISK = HIGH
-RISK_MEDIUM_MIN_COUNT = 1  # ≥1 MEDIUM → RISK = MEDIUM (wenn kein HIGH)
+# Risk-Level-Logik (legacy — wird vom kalibrierten Schema unten abgeloest)
+RISK_HIGH_MIN_COUNT = 1
+RISK_MEDIUM_MIN_COUNT = 1
+
+# Kalibriertes Risk-Schema (Phase 2 Upgrade)
+# Trennt "Hard-HIGH" (echte Security-Befunde) von "Soft-HIGH" (heuristische
+# Indikatoren). Damit kippt eine Marketing-Broschuere mit 10 OCR-Mismatches
+# nicht mehr auf HIGH, waehrend ein PDF mit Malware-YARA-Treffer sofort HIGH bleibt.
+RISK_HARD_HIGH_THRESHOLD    = int(os.environ.get("RISK_HARD_HIGH_THRESHOLD", "1"))
+RISK_SOFT_HIGH_THRESHOLD    = int(os.environ.get("RISK_SOFT_HIGH_THRESHOLD", "3"))
+RISK_MEDIUM_CLUSTER_THRESHOLD = int(os.environ.get("RISK_MEDIUM_CLUSTER_THRESHOLD", "5"))
+
+# Manipulation-Score Gewichte (cross_analyzer)
+SCORE_HARD_HIGH_WEIGHT  = float(os.environ.get("SCORE_HARD_HIGH_WEIGHT",  "25"))
+SCORE_SOFT_HIGH_WEIGHT  = float(os.environ.get("SCORE_SOFT_HIGH_WEIGHT",  "5"))
+SCORE_MEDIUM_WEIGHT     = float(os.environ.get("SCORE_MEDIUM_WEIGHT",     "2"))
+SCORE_LOW_WEIGHT        = float(os.environ.get("SCORE_LOW_WEIGHT",        "0.5"))
 
 # Bekannte Software-Fingerprints
 KNOWN_PRODUCERS = {

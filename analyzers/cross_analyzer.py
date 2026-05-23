@@ -15,6 +15,13 @@ from models.schemas import (
     Anomaly, AnomalySeverity, CorrelationFinding, CrossAnalyzerResult,
     AnalysisResult,
 )
+from analyzers.severity_profiles import (
+    apply_doc_type_profile, count_by_class, is_hard_high,
+)
+from config import (
+    SCORE_HARD_HIGH_WEIGHT, SCORE_SOFT_HIGH_WEIGHT,
+    SCORE_MEDIUM_WEIGHT, SCORE_LOW_WEIGHT,
+)
 
 
 def _parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:
@@ -317,44 +324,71 @@ def _find_correlations(result: AnalysisResult) -> List[CorrelationFinding]:
     return correlations
 
 
-def _compute_manipulation_score(result: AnalysisResult, correlations: List[CorrelationFinding]) -> float:
+def _compute_manipulation_score(
+    result: AnalysisResult,
+    correlations: List[CorrelationFinding],
+    doc_type: Optional[str] = None,
+) -> float:
     """
-    Berechnet einen Manipulations-Score von 0-100.
-    Gewichtung:
-    - HIGH-Anomalien: 8 Punkte
-    - MEDIUM-Anomalien: 3 Punkte
-    - LOW-Anomalien: 1 Punkt
-    - Korrelationen: 10-15 Punkte je nach Severity
+    Berechnet einen Manipulations-Score von 0-100, **Doc-Typ-bewusst**.
+
+    Aenderung gegenueber alter Implementierung:
+    - Anomalien werden zuerst per `apply_doc_type_profile` an den Dokumenttyp
+      angepasst (z.B. OCR-Mismatch in einer Broschuere -> INFO statt HIGH).
+    - "Hard-HIGH" (echte Security) und "Soft-HIGH" (Heuristik) werden
+      unterschiedlich gewichtet. Damit kippt ein Marketing-PDF nicht mehr auf
+      100/100 nur weil OCR an stylized text scheitert, waehrend ein PDF mit
+      Malware-Signatur weiterhin sofort einen hohen Score bekommt.
     """
+    # Doc-Typ-bewusste Severities anwenden
+    effective_anomalies = apply_doc_type_profile(result.all_anomalies or [], doc_type)
+    counts = count_by_class(effective_anomalies)
+
     score = 0.0
+    score += counts["hard_high"] * SCORE_HARD_HIGH_WEIGHT
+    score += counts["soft_high"] * SCORE_SOFT_HIGH_WEIGHT
+    score += counts["medium"]    * SCORE_MEDIUM_WEIGHT
+    score += counts["low"]       * SCORE_LOW_WEIGHT
 
-    # Anomalie-Punkte
-    score += result.anomaly_count_high * 8
-    score += result.anomaly_count_medium * 3
-    score += result.anomaly_count_low * 1
-
-    # Korrelations-Punkte
+    # Korrelations-Punkte (Hard-/Soft-HIGH unterscheiden)
     for c in correlations:
+        # Korrelation ist Hard-HIGH wenn mindestens ein involvierter Analyzer
+        # in HARD_HIGH_CATEGORIES ist
+        is_hh = any(a in {"javascript", "shadow_attack", "yara", "virus_scan", "redaction"}
+                    for a in (c.analyzers_involved or []))
         if c.severity == AnomalySeverity.HIGH:
-            score += 15
+            score += 15 if is_hh else 8
         elif c.severity == AnomalySeverity.MEDIUM:
-            score += 10
+            score += 8 if is_hh else 4
         else:
-            score += 5
+            score += 3
 
-    # Bonus für bestimmte Befunde
-    if result.javascript and result.javascript.has_javascript:
-        score += 10
-    if result.hidden_text and result.hidden_text.hidden_blocks:
-        score += 5
+    # Hard-HIGH-Boni fuer kritische Einzelbefunde — auch wenn die Anomalie
+    # vielleicht keine HIGH-Severity hatte, ist das Vorhandensein selbst kritisch
+    if result.javascript and getattr(result.javascript, "has_auto_execute", False):
+        score += 20
     if result.shadow_attack and result.shadow_attack.anomalies:
-        score += 15
+        score += 25
+    if result.virus_scan:
+        try:
+            if any(e.threats_found for e in (result.virus_scan.engines or [])):
+                score += 30
+        except Exception:
+            pass
 
     return min(100.0, score)
 
 
-def analyze_cross_correlations(result: AnalysisResult) -> CrossAnalyzerResult:
-    """Führt die vollständige Cross-Analyzer-Korrelation durch."""
+def analyze_cross_correlations(
+    result: AnalysisResult,
+    doc_type: Optional[str] = None,
+) -> CrossAnalyzerResult:
+    """Fuehrt die vollstaendige Cross-Analyzer-Korrelation durch.
+
+    `doc_type`: optionaler Dokumenttyp aus `doc_type_classifier`. Wird in das
+    Scoring + Severity-Profil eingesetzt, damit z.B. eine Marketing-Broschuere
+    nicht durch OCR-Mismatches auf 100/100 kippt.
+    """
     anomalies: List[Anomaly] = []
 
     # 1. Zeitlinie rekonstruieren
@@ -366,8 +400,8 @@ def analyze_cross_correlations(result: AnalysisResult) -> CrossAnalyzerResult:
     # 3. Korrelationen finden
     correlations = _find_correlations(result)
 
-    # 4. Manipulations-Score
-    manip_score = _compute_manipulation_score(result, correlations)
+    # 4. Manipulations-Score (Doc-Typ-bewusst)
+    manip_score = _compute_manipulation_score(result, correlations, doc_type=doc_type)
 
     # Anomalien aus Korrelationen
     for c in correlations:

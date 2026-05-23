@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from config import IMAGES_DIR
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
 from models.schemas import (
     AnalysisResult, Anomaly, AnomalySeverity, RiskLevel,
@@ -54,6 +54,12 @@ from analyzers.incremental_differ import analyze_incremental_diff
 from analyzers.fuzzy_hasher import compute_fuzzy_hashes
 from analyzers.cross_analyzer import analyze_cross_correlations
 from analyzers.chain_of_custody import create_chain_of_custody
+from analyzers.doc_type_classifier import classify_doc_type
+from analyzers.severity_profiles import apply_doc_type_profile, count_by_class
+from config import (
+    RISK_HARD_HIGH_THRESHOLD, RISK_SOFT_HIGH_THRESHOLD,
+    RISK_MEDIUM_CLUSTER_THRESHOLD,
+)
 
 # Phase 6 — Extended Forensics
 from analyzers.yara_scanner import analyze_yara
@@ -103,14 +109,36 @@ ANALYZER_NAMES = [
 ]
 
 
-def _compute_risk_level(anomalies: List[Anomaly]) -> RiskLevel:
-    high_count   = sum(1 for a in anomalies if a.severity == AnomalySeverity.HIGH)
-    medium_count = sum(1 for a in anomalies if a.severity == AnomalySeverity.MEDIUM)
-    if high_count > 0:
+def _compute_risk_level(
+    anomalies: List[Anomaly],
+    doc_type: Optional[str] = None,
+) -> RiskLevel:
+    """
+    Doc-Typ-bewusste Risk-Level-Berechnung.
+
+    Vorher: 1 HIGH-Finding -> sofort RISK_HIGH, egal wie heuristisch.
+    Ergebnis: Marketingbroschueren landeten auf HIGH wegen OCR-Mismatch.
+
+    Jetzt:
+    1. Doc-Typ-Profil anwenden (Downgrades fuer typische Befunde)
+    2. Hard-HIGH (echte Security: JS-Exec, Malware, Shadow Attack, ...) -> HIGH
+    3. Soft-HIGH-Cluster (>= RISK_SOFT_HIGH_THRESHOLD) -> HIGH
+    4. Sonst MEDIUM/LOW/CLEAN nach Anzahl
+    """
+    effective = apply_doc_type_profile(anomalies, doc_type)
+    c = count_by_class(effective)
+
+    if c["hard_high"] >= RISK_HARD_HIGH_THRESHOLD:
         return RiskLevel.HIGH
-    if medium_count > 0:
+    if c["soft_high"] >= RISK_SOFT_HIGH_THRESHOLD:
+        return RiskLevel.HIGH
+    if c["soft_high"] >= 1:
         return RiskLevel.MEDIUM
-    if anomalies:
+    if c["medium"] >= RISK_MEDIUM_CLUSTER_THRESHOLD:
+        return RiskLevel.MEDIUM
+    if c["medium"] >= 1:
+        return RiskLevel.MEDIUM
+    if c["low"] >= 1:
         return RiskLevel.LOW
     return RiskLevel.CLEAN
 
@@ -533,8 +561,19 @@ def run_pipeline(pdf_path: Path, original_filename: str, profile: str = "standar
     if steg_result:
         all_anomalies.extend(steg_result.anomalies)
 
+    # ================================================================
+    # Doc-Type-Klassifikation (vor Risk-Level + Cross-Analyzer!)
+    # ================================================================
+    doc_type_result = classify_doc_type(
+        software_fingerprint=software_fp,
+        metadata=metadata,
+        signature=signature,
+        printer_forensics=printer_result,
+    )
+    _doc_type_key = doc_type_result.doc_type
+
     significant = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
-    risk_level   = _compute_risk_level(significant)
+    risk_level   = _compute_risk_level(significant, doc_type=_doc_type_key)
 
     high_count   = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.HIGH)
     medium_count = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.MEDIUM)
@@ -606,12 +645,13 @@ def run_pipeline(pdf_path: Path, original_filename: str, profile: str = "standar
         hf_layout=layout_result,
         splicing=splicing_result,
         profile=profile,
+        doc_type=doc_type_result,
     )
 
     # ================================================================
     # 34. Cross-Analyzer Intelligence (braucht das Gesamtergebnis)
     # ================================================================
-    cross_result = analyze_cross_correlations(analysis_result)
+    cross_result = analyze_cross_correlations(analysis_result, doc_type=_doc_type_key)
     all_anomalies.extend(cross_result.anomalies)
     analysis_result.cross_analyzer = cross_result
 
@@ -632,7 +672,7 @@ def run_pipeline(pdf_path: Path, original_filename: str, profile: str = "standar
 
     # Risk-Level nochmal berechnen (mit Cross-Analyzer Anomalien)
     significant = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
-    analysis_result.risk_level = _compute_risk_level(significant)
+    analysis_result.risk_level = _compute_risk_level(significant, doc_type=_doc_type_key)
 
 
     # ================================================================
@@ -666,7 +706,7 @@ def run_pipeline(pdf_path: Path, original_filename: str, profile: str = "standar
     analysis_result.anomaly_count_medium = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.MEDIUM)
     analysis_result.anomaly_count_low    = sum(1 for a in all_anomalies if a.severity == AnomalySeverity.LOW)
     significant_final = [a for a in all_anomalies if a.severity != AnomalySeverity.INFO]
-    analysis_result.risk_level = _compute_risk_level(significant_final)
+    analysis_result.risk_level = _compute_risk_level(significant_final, doc_type=_doc_type_key)
 
     from analyzers.numpy_sanitizer import sanitize_result
     return sanitize_result(analysis_result)

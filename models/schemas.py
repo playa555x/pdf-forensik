@@ -30,6 +30,18 @@ class Anomaly(BaseModel):
     detail: Optional[str] = None
 
 
+class DocTypeResult(BaseModel):
+    """
+    Heuristische Dokumenttyp-Klassifikation. Wird frueh in der Pipeline
+    bestimmt und an Cross-Analyzer + Risk-Berechnung durchgereicht, damit
+    Severity-Profile pro Dokumenttyp angewendet werden koennen.
+    """
+    doc_type: str = "unknown"
+    confidence: float = 0.0
+    reasoning: List[str] = Field(default_factory=list)
+    inputs: Dict[str, Any] = Field(default_factory=dict)
+
+
 # ---- Hashing ----------------------------------------------------------------
 
 class HashResult(BaseModel):
@@ -845,6 +857,8 @@ class AnalysisResult(BaseModel):
     splicing: Optional[SplicingDetectorResult] = None
     mllm_reasoning: Optional[MLLMReasonerResult] = None
     profile: Optional[str] = None
+    # Phase 7 — Doc-Type-Klassifikation fuer kalibriertes Scoring
+    doc_type: Optional[DocTypeResult] = None
 
 
 # ---- Verlauf ----------------------------------------------------------------
