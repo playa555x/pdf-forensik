@@ -16,9 +16,33 @@ from database.db import (
     get_analysis, save_ai_review, get_ai_review,
     save_ai_balanced, get_ai_balanced,
 )
+import os
 from analyzers.ai_review import (
     run_ai_review, stream_quick_impression, run_balanced_findings_review,
 )
+from analyzers.ai_claude_cli import (
+    run_ai_review_via_claude, run_balanced_findings_review_via_claude,
+)
+
+# Backend-Switch: AI_BACKEND=claude (Default: ollama)
+_AI_BACKEND = os.environ.get("AI_BACKEND", "ollama").strip().lower()
+
+
+async def _do_ai_review(analysis_data, lang):
+    """Dispatcher zum richtigen Backend."""
+    if _AI_BACKEND == "claude":
+        return await run_ai_review_via_claude(analysis_data, lang=lang)
+    return await run_ai_review(analysis_data, lang=lang)
+
+
+async def _do_balanced(findings, doc_type, workflow, lang):
+    if _AI_BACKEND == "claude":
+        return await run_balanced_findings_review_via_claude(
+            findings=findings, doc_type=doc_type, workflow=workflow, lang=lang,
+        )
+    return await run_balanced_findings_review(
+        findings=findings, doc_type=doc_type, workflow=workflow, lang=lang,
+    )
 
 router = APIRouter()
 
@@ -68,9 +92,9 @@ async def ai_review(analysis_id: str, lang: str = Query(default="de"), force: bo
             cached["_cached"] = True
             return cached
 
-    # Neu generieren
+    # Neu generieren (Backend-abhaengig: ollama oder claude)
     analysis_data = result.model_dump()
-    review = await run_ai_review(analysis_data, lang=lang)
+    review = await _do_ai_review(analysis_data, lang=lang)
 
     if not review.get("available", True) and "error" in review:
         raise HTTPException(status_code=502, detail=review["error"])
@@ -246,7 +270,7 @@ async def ai_balanced(
     doc_type = (data.get("doc_type") or {}).get("doc_type", "unknown")
     workflow = (data.get("signature_workflow") or {}).get("workflow", "unknown")
 
-    balanced = await run_balanced_findings_review(
+    balanced = await _do_balanced(
         findings=relevant, doc_type=doc_type, workflow=workflow, lang=lang,
     )
 
