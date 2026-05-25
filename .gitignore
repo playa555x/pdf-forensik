@@ -34,6 +34,8 @@ reports_out/
 Thumbs.db
 desktop.ini
 *.bat
+# Ausnahme: Bridge-Watchdog-BAT ist Setup-Doku, soll versioniert sein
+!bridge/Claude-Bridge-Start.bat
 
 # IDE
 .idea/
