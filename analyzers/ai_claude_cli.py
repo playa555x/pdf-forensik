@@ -1,105 +1,67 @@
 """
-Claude-CLI-Backend fuer die KI-Reviews.
+Claude-Backend via Bridge auf dem User-PC.
 
-SICHERHEIT: Wir nutzen asyncio.create_subprocess_exec mit ARGV-LISTE
-(kein Shell-String) — keine Command-Injection moeglich. Die Args sind
-fest verdrahtet, nur der vom User gesteuerte Prompt geht als EINZELNES
-Argument durch (Subprocess-Argv-Trennung).
+Der VPS spricht NIE direkt mit Claude/Anthropic. Stattdessen ruft der App-
+Server localhost:11600 an (SSH-Reverse-Tunnel zum PC). Auf dem PC laeuft
+`bridge/claude_bridge.py` welches das lokale `claude` CLI mit der Pro/Max-
+Subscription des Users als Subprozess aufruft.
 
-Statt das Local-LLM (Ollama / gemma4) anzusprechen, wird hier das
-`claude` CLI als Subprozess aufgerufen. Das CLI ist mit der Pro/Max-
-Subscription des Users authentifiziert — pro Aufruf entstehen also
-KEINE API-Kosten (Subscription-Tokens).
+Vorteile:
+- KEINE API-Kosten (Subscription)
+- KEINE Credentials auf VPS (Memory-Regel "NIEMALS Credentials kopieren")
+- Tunnel-Architektur identisch zu Ollama (Port 11500)
 
 Konfiguration via .env / Service-Drop-in:
-  AI_BACKEND=claude            # ollama (default) oder claude
-  CLAUDE_CLI_PATH=/usr/local/bin/claude  # optional, default per PATH
-  CLAUDE_CLI_MODEL=             # optional Model-Override (z.B. "opus-4-7")
-  CLAUDE_CLI_TIMEOUT=180        # Sekunden
-
-CLI-Aufruf: `claude -p <prompt> --output-format json`
-Liefert ein JSON-Objekt mit `result` (string) und `session_id` (string).
-Wir parsen den `result`-Text als unser eigenes Schema-JSON.
+  AI_BACKEND=claude                   # ollama (default) oder claude
+  CLAUDE_BRIDGE_URL=http://localhost:11600
+  CLAUDE_BRIDGE_TOKEN=                # optional Shared-Secret Header
+  CLAUDE_BRIDGE_TIMEOUT=180           # Sekunden
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
-import shutil
 from typing import Any, Dict, List, Optional
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
-CLAUDE_CLI_PATH    = os.environ.get("CLAUDE_CLI_PATH") or shutil.which("claude") or "claude"
-CLAUDE_CLI_MODEL   = os.environ.get("CLAUDE_CLI_MODEL", "").strip()
-CLAUDE_CLI_TIMEOUT = float(os.environ.get("CLAUDE_CLI_TIMEOUT", "180"))
+CLAUDE_BRIDGE_URL     = os.environ.get("CLAUDE_BRIDGE_URL", "http://localhost:11600").rstrip("/")
+CLAUDE_BRIDGE_TOKEN   = os.environ.get("CLAUDE_BRIDGE_TOKEN", "").strip()
+CLAUDE_BRIDGE_TIMEOUT = float(os.environ.get("CLAUDE_BRIDGE_TIMEOUT", "180"))
+CLAUDE_BRIDGE_MODEL   = os.environ.get("CLAUDE_CLI_MODEL", "").strip()
 
 
-def _is_available() -> bool:
-    """Prueft ob das claude CLI existiert und aufrufbar ist."""
-    return bool(shutil.which(CLAUDE_CLI_PATH) or os.path.isfile(CLAUDE_CLI_PATH))
-
-
-async def _run_claude(prompt: str, system: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Ruft `claude -p <prompt> --output-format json` als Subprozess auf.
-    Returns:
-      {"text": "...", "session_id": "...", "error": "..."}
-    """
-    if not _is_available():
-        return {"error": f"claude CLI nicht gefunden ({CLAUDE_CLI_PATH})"}
-
-    # ARGV-Liste (NICHT shell=True) — keine Injection moeglich
-    args = [CLAUDE_CLI_PATH, "-p", "--output-format", "json"]
-    if CLAUDE_CLI_MODEL:
-        args += ["--model", CLAUDE_CLI_MODEL]
+async def _call_bridge(endpoint: str, prompt: str, system: Optional[str] = None) -> Dict[str, Any]:
+    """POST zum Bridge-Endpoint. Liefert das CLI-JSON-Objekt direkt zurueck."""
+    payload = {"prompt": prompt}
     if system:
-        args += ["--append-system-prompt", system]
-    args.append(prompt)
+        payload["system"] = system
+    if CLAUDE_BRIDGE_MODEL:
+        payload["model"] = CLAUDE_BRIDGE_MODEL
+    headers = {"Content-Type": "application/json"}
+    if CLAUDE_BRIDGE_TOKEN:
+        headers["X-Bridge-Token"] = CLAUDE_BRIDGE_TOKEN
 
+    url = f"{CLAUDE_BRIDGE_URL}{endpoint}"
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-    except FileNotFoundError as e:
-        return {"error": f"CLI-Aufruf fehlgeschlagen: {e}"}
-
-    try:
-        stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=CLAUDE_CLI_TIMEOUT)
-    except asyncio.TimeoutError:
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
-        return {"error": f"claude CLI Timeout nach {CLAUDE_CLI_TIMEOUT}s"}
-
-    if proc.returncode != 0:
-        return {
-            "error": f"claude CLI exit={proc.returncode}: "
-                     f"{(stderr_b or b'').decode('utf-8','replace')[:500]}",
-        }
-
-    out_text = (stdout_b or b"").decode("utf-8", "replace").strip()
-    # Erwartetes Format: JSON-Objekt mit `result` (string) und `session_id` (string)
-    try:
-        cli_obj = json.loads(out_text)
-        return {
-            "text":       cli_obj.get("result") or "",
-            "session_id": cli_obj.get("session_id") or "",
-            "raw":        cli_obj,
-        }
-    except json.JSONDecodeError:
-        # Fallback: stdout ist direkt der Text
-        return {"text": out_text, "session_id": "", "raw": None}
+        async with httpx.AsyncClient(timeout=CLAUDE_BRIDGE_TIMEOUT) as client:
+            r = await client.post(url, headers=headers, json=payload)
+            r.raise_for_status()
+            return r.json()
+    except httpx.ConnectError:
+        return {"error": f"Claude-Bridge nicht erreichbar unter {url} — laeuft der Tunnel?"}
+    except httpx.HTTPStatusError as e:
+        return {"error": f"Bridge HTTP {e.response.status_code}: {e.response.text[:300]}"}
+    except Exception as e:
+        return {"error": f"Bridge-Aufruf fehlgeschlagen: {e}"}
 
 
 def _strip_json_fence(text: str) -> str:
     """Markdown ```json fences abschneiden."""
-    t = text.strip()
+    t = (text or "").strip()
     if t.startswith("```"):
         first_nl = t.find("\n")
         if first_nl > 0:
@@ -114,11 +76,8 @@ def _strip_json_fence(text: str) -> str:
 # ──────────────────────────────────────────────────────────────────────
 
 async def run_ai_review_via_claude(analysis_data: Dict[str, Any], lang: str = "de") -> Dict[str, Any]:
-    """
-    Wie run_ai_review() im Ollama-Pfad — gibt aber via Claude CLI zurueck.
-    Output-Schema identisch zum bestehenden run_ai_review.
-    """
-    # Import lokal um zirkulaere Imports zu vermeiden
+    """Wie run_ai_review() im Ollama-Pfad, aber via Bridge auf PC."""
+    # Lokal um zirkulaere Imports zu vermeiden
     from analyzers.ai_review import (
         _get_system_prompt,
         _build_user_prompt,
@@ -129,33 +88,45 @@ async def run_ai_review_via_claude(analysis_data: Dict[str, Any], lang: str = "d
     system = _get_system_prompt(lang)
     user_prompt = _build_user_prompt(analysis_data, lang=lang)
 
-    res = await _run_claude(user_prompt, system=system)
-    if "error" in res:
-        return {"error": res["error"], "available": False}
+    cli_obj = await _call_bridge("/review", prompt=user_prompt, system=system)
+    if "error" in cli_obj:
+        return {"error": cli_obj["error"], "available": False}
 
-    raw_text = res.get("text") or ""
+    # Bridge gibt das rohe Claude-CLI-JSON-Objekt zurueck (result, session_id, is_error, ...)
+    if cli_obj.get("is_error"):
+        return {
+            "error": f"Claude-CLI is_error: {cli_obj.get('result', '')[:300]}",
+            "available": False,
+        }
+
+    raw_text = cli_obj.get("result") or ""
     if not raw_text.strip():
-        return {"error": "Leere Antwort vom Claude CLI", "available": False}
+        return {"error": "Leere Antwort von Claude", "available": False}
 
     try:
         parsed = _extract_json_from_response(_strip_json_fence(raw_text))
     except Exception as e:
         return {
-            "error": f"KI-Antwort konnte nicht als JSON geparst werden: {e}",
+            "error": f"Claude-Antwort konnte nicht als JSON geparst werden: {e}",
             "raw_response": raw_text[:1500],
             "available": False,
         }
 
     review = _normalize_ai_review(parsed)
-    review["model"] = f"claude-cli{(':' + CLAUDE_CLI_MODEL) if CLAUDE_CLI_MODEL else ''}"
+    model = (list((cli_obj.get("modelUsage") or {}).keys()) or [""])[0] or "claude-cli"
+    review["model"] = model
     review["available"] = True
-    if res.get("session_id"):
-        review["_session"] = res["session_id"]
+    sid = cli_obj.get("session_id")
+    if sid:
+        review["_session"] = sid
+    # Diagnose: Duration durchreichen
+    if cli_obj.get("duration_ms"):
+        review["_duration_ms"] = cli_obj["duration_ms"]
     return review
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Balanced-per-Finding (analog zu run_balanced_findings_review)
+# Balanced-per-Finding
 # ──────────────────────────────────────────────────────────────────────
 
 async def run_balanced_findings_review_via_claude(
@@ -177,19 +148,26 @@ async def run_balanced_findings_review_via_claude(
     system = _BALANCED_SYS_EN if lang == "en" else _BALANCED_SYS_DE
     user_prompt = _build_balanced_user_prompt(findings, doc_type, workflow, lang)
 
-    res = await _run_claude(user_prompt, system=system)
-    if "error" in res:
-        return {"error": res["error"], "available": False, "findings": []}
+    cli_obj = await _call_bridge("/balanced", prompt=user_prompt, system=system)
+    if "error" in cli_obj:
+        return {"error": cli_obj["error"], "available": False, "findings": []}
 
-    raw_text = res.get("text") or ""
+    if cli_obj.get("is_error"):
+        return {
+            "error": f"Claude-CLI is_error: {cli_obj.get('result', '')[:300]}",
+            "available": False,
+            "findings": [],
+        }
+
+    raw_text = cli_obj.get("result") or ""
     if not raw_text.strip():
-        return {"error": "Leere Antwort vom Claude CLI", "available": False, "findings": []}
+        return {"error": "Leere Antwort von Claude", "available": False, "findings": []}
 
     try:
         parsed = _extract_json_from_response(_strip_json_fence(raw_text))
     except Exception as e:
         return {
-            "error": f"KI-Antwort konnte nicht als JSON geparst werden: {e}",
+            "error": f"Claude-Antwort konnte nicht als JSON geparst werden: {e}",
             "raw_response": raw_text[:1500],
             "available": False,
             "findings": [],
@@ -197,6 +175,6 @@ async def run_balanced_findings_review_via_claude(
 
     if not isinstance(parsed.get("findings"), list):
         parsed["findings"] = []
-    parsed["model"] = f"claude-cli{(':' + CLAUDE_CLI_MODEL) if CLAUDE_CLI_MODEL else ''}"
+    parsed["model"] = "claude-cli"
     parsed["available"] = True
     return parsed
