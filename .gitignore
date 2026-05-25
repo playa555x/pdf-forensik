@@ -46,3 +46,4 @@ desktop.ini
 
 # YARA
 *.yar.compiled
+bridge/.bridge_token
